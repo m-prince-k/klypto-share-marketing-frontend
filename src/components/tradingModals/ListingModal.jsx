@@ -34,11 +34,9 @@ export const ListingModal = ({
     setError(null);
 
     try {
-      const response = await apiService.post(
-        debouncedIndicator
-          ? `/equity/getIndicators?q=${debouncedIndicator}`
-          : `/equity/getIndicators`,
-      );
+      const response = await apiService.post(`/equity/getIndicators`);
+
+      console.log("indicator API response:", response);
 
       setIndicators(response?.data || []);
     } catch (err) {
@@ -69,7 +67,7 @@ export const ListingModal = ({
   useEffect(() => {
     if (title === "Indicators") fetchIndicators();
     if (title === "Symbol Search") fetchCurrencies();
-  }, [title, debouncedIndicator]);
+  }, [title]);
 
   // 🔍 Indicator Filter
   const filteredIndicators = (indicators ?? []).filter((item) => {
@@ -77,6 +75,10 @@ export const ListingModal = ({
 
     const search = searchIndicator.toLowerCase().trim();
 
+    const label = item?.label?.toLowerCase() || "";
+    const slug = item?.slug?.toLowerCase() || "";
+
+    // 🔥 initials support (RSI -> "rsi", Moving Average -> "ma")
     const getInitials = (text) =>
       text
         .split(" ")
@@ -85,33 +87,46 @@ export const ListingModal = ({
         .toLowerCase();
 
     return (
-      item.label.toLowerCase().includes(search) ||
-      getInitials(item.label).includes(search) ||
-      item.slug?.toLowerCase().includes(search)
+      label.includes(search) ||
+      slug.includes(search) ||
+      getInitials(label).includes(search)
     );
   });
 
   // 🔍 Stock Filter
-const filteredCurrencies = currencies?.filter((curr) => {
-  if (!searchCurrency) return true;
+  const filteredCurrencies = currencies?.filter((curr) => {
+    if (!searchCurrency) return true;
+    const search = searchCurrency.toLowerCase().trim();
 
-  const search = searchCurrency.toLowerCase().trim();
+    const name = curr?.name?.toLowerCase() || "";
+    const symbol = curr?.actualSymbol?.toLowerCase() || "";
+    const code = curr?.userCode?.toLowerCase() || "";
 
-  const name = curr?.name?.toLowerCase() || "";
-  const symbol = curr?.actualSymbol?.toLowerCase() || "";
-  const cleanSymbol = symbol.replace("-eq", ""); // 🔥 important
-  const userCode = curr?.userCode?.toLowerCase() || "";
-  const fullName = curr?.fullName?.toLowerCase() || "";
+    return (
+      name.includes(search) ||
+      symbol.includes(search) ||
+      code.includes(search)
+    );
+  }).sort((a, b) => {
+    if (!searchCurrency) return 0;
+    const search = searchCurrency.toLowerCase().trim();
 
-  return (
-    name.includes(search) ||
-    symbol.includes(search) ||
-    cleanSymbol.includes(search) || // 🔥 handles ABB vs ABB-EQ
-    userCode.includes(search) ||
-    fullName.includes(search)
-  );
-});
+    const getScore = (item) => {
+      const name = item?.name?.toLowerCase() || "";
+      const symbol = item?.actualSymbol?.toLowerCase() || "";
+      const code = item?.userCode?.toLowerCase() || "";
 
+      if (name === search || symbol === search || code === search) return 3;
+      if (name.startsWith(search) || symbol.startsWith(search) || code.startsWith(search)) return 2;
+      return 1;
+    };
+
+    return getScore(b) - getScore(a);
+  });
+
+
+ 
+ 
   if (!isOpen) return null;
 
   return (
@@ -153,7 +168,7 @@ const filteredCurrencies = currencies?.filter((curr) => {
                 <ListGroup variant="flush">
                   {filteredCurrencies.map((curr, index) => (
                     <ListGroup.Item
-                      key={curr.token || index}
+                      key={`${curr?.actualSymbol}-${curr?.userCode}-${index}`}
                       action
                       onClick={() => {
                         setSelectedCurrency({

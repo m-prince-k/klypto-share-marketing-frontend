@@ -2038,3 +2038,73 @@ export const getMaxTimeframe = (tfs = []) => {
     return tfToMinutes(curr) > tfToMinutes(max) ? curr : max;
   });
 };
+
+
+ export const s = {
+    sectionTitle: {
+      fontSize: "0.7rem",
+      fontWeight: 700,
+      letterSpacing: "0.12em",
+      textTransform: "uppercase",
+      color: "#9ca3af",
+      marginBottom: 10,
+      marginTop: 20,
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+    },
+    sectionBar: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      width: 18,
+      height: 18,
+      borderRadius: 4,
+      background: "linear-gradient(135deg,#7c3aed,#4f46e5)",
+      color: "#fff",
+      fontSize: "0.6rem",
+      fontWeight: 700,
+      flexShrink: 0,
+    },
+    card: {
+      background: "#111827",
+      border: "1px solid #1f2937",
+      borderRadius: 10,
+      padding: "14px 16px",
+      marginBottom: 4,
+    },
+    label: {
+      fontSize: "0.67rem",
+      fontWeight: 600,
+      letterSpacing: "0.08em",
+      textTransform: "uppercase",
+      color: "#6b7280",
+      marginBottom: 5,
+      display: "block",
+    },
+    select: {
+      background: "#1f2937",
+      border: "1px solid #374151",
+      borderRadius: 6,
+      color: "#f3f4f6",
+      padding: "7px 30px 7px 10px",
+      fontSize: "0.85rem",
+      width: "100%",
+      appearance: "none",
+      cursor: "pointer",
+      boxSizing: "border-box",
+      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236b7280' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E")`,
+      backgroundRepeat: "no-repeat",
+      backgroundPosition: "right 10px center",
+    },
+    input: {
+      background: "#1f2937",
+      border: "1px solid #374151",
+      borderRadius: 6,
+      color: "#9ca3af",
+      padding: "7px 10px",
+      fontSize: "0.85rem",
+      width: "100%",
+      boxSizing: "border-box",
+    },
+  };

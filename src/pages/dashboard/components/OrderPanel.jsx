@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import apiService from "../../../services/apiServices";
+import SearchSelect from "./SearchSelect";
+import { s } from "../../../util/common";
 
-const STOCKS = ["NIFTY", "BANKNIFTY", "SENSEX", "FINNIFTY"];
 const EXPIRIES = [
   "30 MAY 2024 (Weekly)",
   "06 JUN 2024 (Weekly)",
@@ -42,6 +43,33 @@ const ACTIONS = [
   },
 ];
 
+const ACTION_MAP = {
+  BUY_CALL: "BUY",
+  SQ_CALL: "SELL",
+  BUY_PUT: "BUY",
+  SQ_PUT: "SELL",
+};
+
+// Validation rules in order — first failing field is shown to the user
+const getValidationError = ({
+  stock,
+  expiry,
+  strategy,
+  preference,
+  product,
+  orderType,
+  qty,
+}) => {
+  if (!stock) return "Please select a Stock before proceeding.";
+  if (!expiry) return "Please select an Expiry date.";
+  if (!strategy) return "Please select a Strategy.";
+  if (!preference) return "Please select a Preference (ATM / ITM / OTM).";
+  if (!product) return "Please select a Product type (MIS / NRML / CNC).";
+  if (!orderType) return "Please select an Order Type (MARKET / LIMIT).";
+  if (!qty || qty < 1) return "Quantity must be at least 1 lot.";
+  return null;
+};
+
 const OrderPanel = ({
   stock,
   setStock,
@@ -63,119 +91,61 @@ const OrderPanel = ({
   setAction,
 }) => {
   const [stocks, setStocks] = useState([]);
+  const [validationMsg, setValidationMsg] = useState("");
   const recommendedStrike = STRIKES[strategy]?.[preference] ?? "22,200";
 
-  const s = {
-    sectionTitle: {
-      fontSize: "0.7rem",
-      fontWeight: 700,
-      letterSpacing: "0.12em",
-      textTransform: "uppercase",
-      color: "#9ca3af",
-      marginBottom: 10,
-      marginTop: 20,
-      display: "flex",
-      alignItems: "center",
-      gap: 8,
-    },
-    sectionBar: {
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
-      width: 18,
-      height: 18,
-      borderRadius: 4,
-      background: "linear-gradient(135deg,#7c3aed,#4f46e5)",
-      color: "#fff",
-      fontSize: "0.6rem",
-      fontWeight: 700,
-      flexShrink: 0,
-    },
-    card: {
-      background: "#111827",
-      border: "1px solid #1f2937",
-      borderRadius: 10,
-      padding: "14px 16px",
-      marginBottom: 4,
-    },
-    label: {
-      fontSize: "0.67rem",
-      fontWeight: 600,
-      letterSpacing: "0.08em",
-      textTransform: "uppercase",
-      color: "#6b7280",
-      marginBottom: 5,
-      display: "block",
-    },
-    select: {
-      background: "#1f2937",
-      border: "1px solid #374151",
-      borderRadius: 6,
-      color: "#f3f4f6",
-      padding: "7px 30px 7px 10px",
-      fontSize: "0.85rem",
-      width: "100%",
-      appearance: "none",
-      cursor: "pointer",
-      boxSizing: "border-box",
-      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236b7280' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E")`,
-      backgroundRepeat: "no-repeat",
-      backgroundPosition: "right 10px center",
-    },
-    input: {
-      background: "#1f2937",
-      border: "1px solid #374151",
-      borderRadius: 6,
-      color: "#9ca3af",
-      padding: "7px 10px",
-      fontSize: "0.85rem",
-      width: "100%",
-      boxSizing: "border-box",
-    },
-  };
+  // console.log("🔍 stock value:", stock);
+  // console.log("🔍 stocks sample:", stocks[0]);
 
-  // ── Confirm bar colors by action ──
-  const confirmMeta = {
-    BUY_CALL: {
-      bg: "rgba(16,185,129,0.06)",
-      border: "rgba(16,185,129,0.25)",
-      grad: "linear-gradient(135deg,#10b981,#059669)",
-      shadow: "0 4px 14px rgba(16,185,129,0.3)",
-    },
-    SQ_CALL: {
-      bg: "rgba(55,65,81,0.6)",
-      border: "#374151",
-      grad: "linear-gradient(135deg,#374151,#1f2937)",
-      shadow: "none",
-    },
-    BUY_PUT: {
-      bg: "rgba(239,68,68,0.06)",
-      border: "rgba(239,68,68,0.25)",
-      grad: "linear-gradient(135deg,#ef4444,#dc2626)",
-      shadow: "0 4px 14px rgba(239,68,68,0.3)",
-    },
-    SQ_PUT: {
-      bg: "rgba(55,65,81,0.6)",
-      border: "#374151",
-      grad: "linear-gradient(135deg,#374151,#1f2937)",
-      shadow: "none",
-    },
+
+
+  const handlePlaceOrder = (selectedAction) => {
+    // Run sequential validation first
+    const error = getValidationError({
+      stock,
+      expiry,
+      strategy,
+      preference,
+      product,
+      orderType,
+      qty,
+    });
+    if (error) {
+      setValidationMsg(error);
+      return;
+    }
+
+    setValidationMsg("");
+    setAction(selectedAction);
+
+    const selectedStock = stocks.find((st) => st.userCode === stock);
+    if (!selectedStock) {
+      setValidationMsg("Selected stock not found. Please re-select.");
+      return;
+    }
+
+    const payload = {
+      tradingsymbol: stock,
+      symboltoken: selectedStock.token,
+      transactiontype: ACTION_MAP[selectedAction],
+      ordertype: orderType,
+      price: orderType === "MARKET" ? 0 : "600",
+      quantity: qty,
+    };
+
+    console.log("🚀 FINAL PAYLOAD:", payload);
+    // apiService.post("order/place", payload);
   };
 
   useEffect(() => {
     async function fetchStocks() {
       try {
         const response = await apiService.get("equity/stocks");
-
-        // console.log("stocks API response:", response);
-
-        // ✅ correct path based on your response
         setStocks(response?.stocks || []);
       } catch (err) {
         console.error("Error fetching stocks:", err);
       }
     }
-
     fetchStocks();
   }, []);
 
@@ -200,21 +170,16 @@ const OrderPanel = ({
           }}
         >
           <div>
-            <label style={s.label}>Stock / Index</label>
-            <select
+            <label style={s.label}>Stock</label>
+            <SearchSelect
+              stocks={stocks}
+              stock={stock}
+              setStock={(val) => {
+                setStock(val);
+                setValidationMsg("");
+              }}
               style={{ ...s.select, fontSize: "0.85rem", fontWeight: 700 }}
-              value={stock}
-                onChange={(e) => setStock(e.target.value)}
-
-            >
-              <option value="">Select stock</option>
-
-              {stocks.map((s, index) => (
-                <option key={index} value={s.actualSymbol}>
-                  {s.name} ({s.actualSymbol})
-                </option>
-              ))}
-            </select>
+            />
           </div>
           <div>
             <label style={s.label}>Current Price</label>
@@ -256,7 +221,10 @@ const OrderPanel = ({
             <select
               style={s.select}
               value={expiry}
-              onChange={(e) => setExpiry(e.target.value)}
+              onChange={(e) => {
+                setExpiry(e.target.value);
+                setValidationMsg("");
+              }}
             >
               <option value="">Select expiry</option>
               {EXPIRIES.map((e) => (
@@ -301,7 +269,10 @@ const OrderPanel = ({
             <select
               style={s.select}
               value={strategy}
-              onChange={(e) => setStrategy(e.target.value)}
+              onChange={(e) => {
+                setStrategy(e.target.value);
+                setValidationMsg("");
+              }}
             >
               <option value="">Select strategy</option>
               <option>Nearest ATM</option>
@@ -313,7 +284,10 @@ const OrderPanel = ({
             <select
               style={s.select}
               value={preference}
-              onChange={(e) => setPreference(e.target.value)}
+              onChange={(e) => {
+                setPreference(e.target.value);
+                setValidationMsg("");
+              }}
             >
               <option value="">Select preference</option>
               <option>ATM</option>
@@ -381,7 +355,10 @@ const OrderPanel = ({
             <select
               style={s.select}
               value={product}
-              onChange={(e) => setProduct(e.target.value)}
+              onChange={(e) => {
+                setProduct(e.target.value);
+                setValidationMsg("");
+              }}
             >
               <option value="">Select</option>
               <option>MIS</option>
@@ -394,7 +371,10 @@ const OrderPanel = ({
             <select
               style={s.select}
               value={orderType}
-              onChange={(e) => setOrderType(e.target.value)}
+              onChange={(e) => {
+                setOrderType(e.target.value);
+                setValidationMsg("");
+              }}
             >
               <option value="">Select</option>
               <option>MARKET</option>
@@ -496,6 +476,28 @@ const OrderPanel = ({
       <div style={s.sectionTitle}>
         <span style={s.sectionBar}>4</span>Select Action
       </div>
+
+      {/* Validation message */}
+      {validationMsg && (
+        <div
+          style={{
+            background: "rgba(239,68,68,0.08)",
+            border: "1px solid rgba(239,68,68,0.3)",
+            borderRadius: 8,
+            padding: "9px 14px",
+            marginBottom: 10,
+            fontSize: "0.78rem",
+            color: "#f87171",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <span style={{ fontSize: "0.9rem" }}>⚠</span>
+          {validationMsg}
+        </div>
+      )}
+
       <div
         style={{
           display: "grid",
@@ -509,7 +511,7 @@ const OrderPanel = ({
           return (
             <button
               key={key}
-              onClick={() => setAction((prev) => (prev === key ? null : key))}
+              onClick={() => handlePlaceOrder(key)}
               style={{
                 width: "100%",
                 padding: "12px 10px",
@@ -554,138 +556,6 @@ const OrderPanel = ({
             </button>
           );
         })}
-      </div>
-
-      {/* ── CONFIRM BAR ── */}
-      {action &&
-        (() => {
-          const a = ACTIONS.find((x) => x.key === action);
-          const m = confirmMeta[action];
-          return (
-            <div
-              style={{
-                marginTop: 14,
-                padding: "14px 18px",
-                background: m.bg,
-                border: `1px solid ${m.border}`,
-                borderRadius: 10,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 16,
-                flexWrap: "wrap",
-              }}
-            >
-              <div
-                style={{ display: "flex", gap: 20, flexWrap: "wrap", flex: 1 }}
-              >
-                {[
-                  { label: "Index", value: stock || "—" },
-                  {
-                    label: "Action",
-                    value: a.label.toUpperCase(),
-                    color: a.bg === "#1f2937" ? "#9ca3af" : a.bg,
-                  },
-                  {
-                    label: "Expiry",
-                    value: expiry ? expiry.split(" (")[0] : "—",
-                  },
-                  {
-                    label: "Strike",
-                    value:
-                      strategy && preference ? `${recommendedStrike} CE` : "—",
-                    color: "#10b981",
-                  },
-                  { label: "Type", value: orderType || "—" },
-                  { label: "Product", value: product || "—" },
-                  { label: "Qty", value: `${qty * 75}` },
-                ].map(({ label, value, color }) => (
-                  <div key={label}>
-                    <div
-                      style={{
-                        fontSize: "0.58rem",
-                        color: "#4b5563",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.08em",
-                        marginBottom: 2,
-                      }}
-                    >
-                      {label}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "0.82rem",
-                        fontWeight: 700,
-                        color: color || "#f3f4f6",
-                      }}
-                    >
-                      {value}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <button
-                style={{
-                  background: m.grad,
-                  border: "none",
-                  borderRadius: 8,
-                  color: "#fff",
-                  fontWeight: 700,
-                  fontSize: "0.8rem",
-                  letterSpacing: "0.05em",
-                  textTransform: "uppercase",
-                  padding: "12px 20px",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  flexShrink: 0,
-                  boxShadow: m.shadow,
-                  transition: "opacity 0.15s, transform 0.1s",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.88")}
-                onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
-                onMouseDown={(e) =>
-                  (e.currentTarget.style.transform = "scale(0.97)")
-                }
-                onMouseUp={(e) =>
-                  (e.currentTarget.style.transform = "scale(1)")
-                }
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  fill="currentColor"
-                  viewBox="0 0 16 16"
-                >
-                  <path d="M15.964.686a.5.5 0 0 0-.65-.65L.767 5.855H.766l-.452.18a.5.5 0 0 0-.082.887l.41.26.001.002 4.995 3.178 3.178 4.995.002.002.26.41a.5.5 0 0 0 .886-.083l6-15Zm-1.833 1.89L6.637 10.07l-.215-.338a.5.5 0 0 0-.154-.154l-.338-.215 7.494-7.494 1.178-.471-.631 1.893Z" />
-                </svg>
-                <div style={{ textAlign: "left" }}>
-                  <div>Confirm</div>
-                  <div
-                    style={{
-                      fontSize: "0.58rem",
-                      fontWeight: 500,
-                      opacity: 0.7,
-                    }}
-                  >
-                    & Place Order
-                  </div>
-                </div>
-              </button>
-            </div>
-          );
-        })()}
-
-      <div
-        style={{
-          textAlign: "right",
-          fontSize: "0.65rem",
-          color: "#4b5563",
-          marginTop: 6,
-        }}
-      >
-        Estimated execution: ~320 ms
       </div>
     </div>
   );

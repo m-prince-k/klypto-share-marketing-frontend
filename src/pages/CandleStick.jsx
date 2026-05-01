@@ -61,7 +61,7 @@ export default function Candlestick() {
   const mainChartHeightRef = useRef(500);
 
   const [openForm, setOpenForm] = useState(false);
-  const [timeframeValue, setTimeframeValue] = useState("1m");
+  const [timeframeValue, setTimeframeValue] = useState("1d");
   const [selectedCurrency, setSelectedCurrency] = useState({
     symbol: "TCS-EQ",
     name: "TCS",
