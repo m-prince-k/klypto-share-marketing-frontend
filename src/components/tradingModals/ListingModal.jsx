@@ -7,6 +7,9 @@ import { Form, InputGroup, ListGroup } from "react-bootstrap";
 import { Spinner } from "./Spinner";
 import apiService from "../../services/apiServices";
 import { useDebounce } from "../../util/common";
+import { getStockLogo } from "../../util/stockSymbol/helper";
+import NSE from "../../../public/images/NSE.svg";
+import BSE from "../../../public/images/BSE.svg";
 
 export const ListingModal = ({
   isOpen,
@@ -18,13 +21,18 @@ export const ListingModal = ({
   setSelectedIndicator,
   toggleIndicator,
 }) => {
-  const [activeTab] = useState("Indicators");
   const [indicators, setIndicators] = useState([]);
   const [currencies, setCurrencies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchIndicator, setSearchIndicator] = useState("");
   const [searchCurrency, setSearchCurrency] = useState("");
+
+  const TABS = ["ALL", "EQUITY", "FUTURES", "OPTIONS"];
+  const [activeTab, setActiveTab] = useState("ALL");
+  const [equity, setEquity] = useState([]);
+  const [futures, setFutures] = useState([]);
+  const [options, setOptions] = useState([]);
 
   const debouncedIndicator = useDebounce(searchIndicator, 500);
 
@@ -47,6 +55,14 @@ export const ListingModal = ({
     }
   }
 
+  const staticCurrencies = [
+    { symbol: "USDINR", name: "US Dollar / Indian Rupee" },
+    { symbol: "EURINR", name: "Euro / Indian Rupee" },
+    { symbol: "GBPINR", name: "British Pound / Indian Rupee" },
+    { symbol: "JPYINR", name: "Japanese Yen / Indian Rupee" },
+    { symbol: "AUDINR", name: "Australian Dollar / Indian Rupee" },
+  ];
+
   // 🔥 Fetch Stocks (Currencies replaced)
   async function fetchCurrencies() {
     setLoading(true);
@@ -57,8 +73,37 @@ export const ListingModal = ({
       console.log("stocks API response:", response);
 
       setCurrencies(response?.stocks || []);
+      setEquity(response?.stocks || []);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // 🔥 Fetch Futures
+  async function fetchFutures() {
+    try {
+      setLoading(true);
+      const res = await apiService.get("equity/futures");
+      console.log("FUTURES:", res);
+      setFutures(res?.data || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // 🔥 Fetch Options
+  async function fetchOptions() {
+    try {
+      setLoading(true);
+      const res = await apiService.get("equity/options");
+      console.log("OPTIONS:", res);
+      setOptions(res?.data || []);
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -94,39 +139,84 @@ export const ListingModal = ({
   });
 
   // 🔍 Stock Filter
-  const filteredCurrencies = currencies?.filter((curr) => {
-    if (!searchCurrency) return true;
-    const search = searchCurrency.toLowerCase().trim();
+  const filteredCurrencies = currencies
+    ?.filter((curr) => {
+      if (!searchCurrency) return true;
+      const search = searchCurrency.toLowerCase().trim();
 
-    const name = curr?.name?.toLowerCase() || "";
-    const symbol = curr?.actualSymbol?.toLowerCase() || "";
-    const code = curr?.userCode?.toLowerCase() || "";
+      const name = curr?.name?.toLowerCase() || "";
+      const symbol = curr?.actualSymbol?.toLowerCase() || "";
+      const code = curr?.userCode?.toLowerCase() || "";
 
-    return (
-      name.includes(search) ||
-      symbol.includes(search) ||
-      code.includes(search)
-    );
-  }).sort((a, b) => {
-    if (!searchCurrency) return 0;
-    const search = searchCurrency.toLowerCase().trim();
+      return (
+        name.includes(search) ||
+        symbol.includes(search) ||
+        code.includes(search)
+      );
+    })
+    .sort((a, b) => {
+      if (!searchCurrency) return 0;
+      const search = searchCurrency.toLowerCase().trim();
 
-    const getScore = (item) => {
-      const name = item?.name?.toLowerCase() || "";
-      const symbol = item?.actualSymbol?.toLowerCase() || "";
-      const code = item?.userCode?.toLowerCase() || "";
+      const getScore = (item) => {
+        const name = item?.name?.toLowerCase() || "";
+        const symbol = item?.actualSymbol?.toLowerCase() || "";
+        const code = item?.userCode?.toLowerCase() || "";
 
-      if (name === search || symbol === search || code === search) return 3;
-      if (name.startsWith(search) || symbol.startsWith(search) || code.startsWith(search)) return 2;
-      return 1;
-    };
+        if (name === search || symbol === search || code === search) return 3;
+        if (
+          name.startsWith(search) ||
+          symbol.startsWith(search) ||
+          code.startsWith(search)
+        )
+          return 2;
+        return 1;
+      };
 
-    return getScore(b) - getScore(a);
+      return getScore(b) - getScore(a);
+    });
+
+  // 🔥 Normalize + Merge
+  const normalize = (item, type) => ({
+    name: item?.name,
+    symbol: item?.actualSymbol, // ✅ important
+    token: item?.token,
+    exchange: item?.segment,
+    userCode: item?.userCode,
+    type,
   });
 
+  const mergedList = [
+    ...equity.map((e) => normalize(e, "EQUITY")),
+    ...futures.map((f) => normalize(f, "FUTURES")),
+    ...options.map((o) => normalize(o, "OPTIONS")),
+  ];
 
- 
- 
+  // 🔥 Active List
+  const getActiveList = () => {
+    if (activeTab === "EQUITY")
+      return equity.map((e) => normalize(e, "EQUITY"));
+    if (activeTab === "FUTURES")
+      return futures.map((f) => normalize(f, "FUTURES"));
+    if (activeTab === "OPTIONS")
+      return options.map((o) => normalize(o, "OPTIONS"));
+    return mergedList;
+  };
+
+  // 🔍 Unified Filter
+  const filteredList = getActiveList()?.filter((item) => {
+    if (!searchCurrency) return true;
+
+    const search = searchCurrency.toLowerCase();
+
+    return (
+      item?.name?.toLowerCase().includes(search) ||
+      item?.symbol?.toLowerCase().includes(search) ||
+      item?.exchange?.toLowerCase().includes(search) ||
+      item?.userCode?.toLowerCase().includes(search)
+    );
+  });
+
   if (!isOpen) return null;
 
   return (
@@ -143,9 +233,56 @@ export const ListingModal = ({
         </div>
 
         {/* ================= SYMBOL SEARCH ================= */}
-
         {title === "Symbol Search" && (
           <div className="py-3">
+            {/* 🔥 Tabs */}
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0",
+                marginBottom: "12px",
+                borderBottom: "1px solid #2a2e39",
+              }}
+            >
+              {TABS.map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  style={{
+                    position: "relative",
+                    background: "transparent",
+                    border: "none",
+                    borderBottom:
+                      activeTab === tab
+                        ? "2px solid #2962ff"
+                        : "2px solid white",
+                    marginBottom: "-1px",
+                    padding: "6px 14px",
+                    fontSize: "12px",
+                    fontWeight: activeTab === tab ? "600" : "400",
+                    fontFamily: "'Trebuchet MS', sans-serif",
+                    letterSpacing: "0.03em",
+                    color: activeTab === tab ? "#25272bff" : "#6a7187",
+                    cursor: "pointer",
+                    transition: "color 0.15s ease, border-color 0.15s ease",
+                    whiteSpace: "nowrap",
+                    outline: "none",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (activeTab !== tab)
+                      e.currentTarget.style.color = "#9598a1";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (activeTab !== tab)
+                      e.currentTarget.style.color = "#6a7187";
+                  }}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
             {/* Search */}
             <InputGroup className="mb-3">
               <InputGroup.Text>
@@ -164,38 +301,56 @@ export const ListingModal = ({
             <div style={{ maxHeight: "60vh", overflowY: "auto" }}>
               {loading ? (
                 <Spinner />
-              ) : filteredCurrencies?.length > 0 ? (
+              ) : filteredList?.length > 0 ? (
                 <ListGroup variant="flush">
-                  {filteredCurrencies.map((curr, index) => (
-                    <ListGroup.Item
-                      key={`${curr?.actualSymbol}-${curr?.userCode}-${index}`}
-                      action
-                      onClick={() => {
-                        setSelectedCurrency({
-                          symbol: curr.actualSymbol,
-                          name: curr.name,
-                          token: curr.token,
-                        });
-                        onClose();
-                      }}
-                      className="d-flex justify-content-between align-items-center"
-                      style={{ cursor: "pointer" }}
-                    >
-                      <div className="d-flex align-items-center gap-2">
-                        {/* <span className="text-warning">
-                          <GrBitcoin />
-                        </span> */}
-
-                        <div className="text-uppercase fw-medium small">
-                          {curr?.name} ({curr?.actualSymbol})
+                  {filteredList.map((item, index) => {
+                    // const logo = getStockLogo(item?.userCode);
+                    return (
+                      <ListGroup.Item
+                        key={`${item.symbol}-${index}`}
+                        action
+                        onClick={() => {
+                          setSelectedCurrency({
+                            symbol: item.symbol,
+                            name: item.name,
+                            token: item.token,
+                            exchange: item.exchange,
+                            type: item.type,
+                            userCode: item.userCode,
+                          });
+                          onClose();
+                        }}
+                        className="d-flex justify-content-between align-items-center"
+                        style={{ cursor: "pointer" }}
+                      >
+                        <div className="d-flex align-items-center gap-2">
+                          <img
+                            src={getStockLogo(item?.userCode)}
+                            width={24}
+                            height={24}
+                            style={{ borderRadius: "50%" }}
+                            onError={(e) => {
+                              e.target.onerror = null;
+                            }}
+                          />
+                          <div className="text-uppercase fw-medium small">
+                            {item?.name} ({item?.symbol})
+                          </div>
                         </div>
-                      </div>
 
-                      <div>
-                        <small className="text-muted">{curr?.userCode}</small>
-                      </div>
-                    </ListGroup.Item>
-                  ))}
+                        <div className="text-end d-flex gap-2 align-items-center">
+                          <small className="text-muted">{item.exchange}</small>
+                          <img
+                            src={
+                              item.exchange?.toLowerCase() === "nse" ? NSE : BSE
+                            }
+                            className="rounded-full"
+                            alt={item.exchange}
+                          />
+                        </div>
+                      </ListGroup.Item>
+                    );
+                  })}
                 </ListGroup>
               ) : (
                 <p className="text-center text-dark py-3">No Data found</p>

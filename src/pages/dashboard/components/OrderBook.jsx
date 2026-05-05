@@ -114,7 +114,7 @@ const OrderBook = ({ orders, setOrders }) => {
 
           // ❌ not available from API (set default)
           strike: "-",
-          expiry: "-",
+          expiry: o.expirey_date || "-",
 
           // 📦 qty
           qty: o.quantity || 0,
@@ -216,7 +216,7 @@ const OrderBook = ({ orders, setOrders }) => {
       style={{
         marginTop: 28,
         fontFamily: "'DM Sans', sans-serif",
-        padding: "10px 22px",
+        // padding: "10px 22px",
       }}
     >
       {/* Header row */}
@@ -370,9 +370,10 @@ const OrderBook = ({ orders, setOrders }) => {
               {[
                 { label: "Time", key: "time" },
                 { label: "Stock", key: "stock" },
+                { label: "Exchange", key: "exchange" },
                 { label: "Type", key: "type" },
                 { label: "Strike", key: "strike" },
-                { label: "Expiry", key: "expiry" },
+                { label: "Expiry", key: "expirey_date" },
                 { label: "Qty", key: "qty" },
                 { label: "Price", key: "price" },
                 { label: "Value", key: null },
@@ -439,6 +440,7 @@ const OrderBook = ({ orders, setOrders }) => {
                     >
                       {o.stock}
                     </td>
+                    <td style={tdStyle}>{o.exchange}</td>
                     <td style={tdStyle}>
                       <span
                         style={{

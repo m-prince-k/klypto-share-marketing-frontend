@@ -66,9 +66,9 @@ export default function Candlestick() {
     symbol: "TCS-EQ",
     name: "TCS",
     token: 11536,
+    segment: "NSE",
   });
-  const [fromDate, setFromDate] = useState("2024-01-01");
-  // console.log(fromDate,"fromDate")
+  const [fromDate, setFromDate] = useState("2026-01-01");
   const [toDate, setToDate] = useState("2026-04-30");
   const [selectedIndicator, setSelectedIndicator] = useState([]);
   const [rangeValue, setRangeValue] = useState("1000");
@@ -945,7 +945,7 @@ export default function Candlestick() {
                     zIndex: 1000,
                   }}
                 >
-                  <Spinner />
+                  {/* <Spinner /> */}
                 </div>
               )}
               {/* -------------------------------sub-header live Values----------------------- */}
@@ -980,7 +980,7 @@ export default function Candlestick() {
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {selectedCurrency?.name} : {timeframeValue} :
+                  {selectedCurrency?.name} : {timeframeValue} : {selectedCurrency?.exchange}
                 </span>
 
                 {/* Market status dot */}

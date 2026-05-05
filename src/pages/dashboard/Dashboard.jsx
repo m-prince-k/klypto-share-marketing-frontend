@@ -46,6 +46,8 @@ const Dashboard = () => {
     setValidity,
     action,
     setAction,
+    orders,
+    setOrders
   };
 
   return (
@@ -65,10 +67,7 @@ const Dashboard = () => {
         <OrderPanel {...orderState} />
         <SidePanel stock={stock} />
       </div>
-      {/* Order Book */}
-      <div>
-        <OrderBook orders={orders} setOrders={setOrders} />
-      </div>
+      
       <style>{`
         .x-small { font-size: 0.65rem; }
         select.input-dark {

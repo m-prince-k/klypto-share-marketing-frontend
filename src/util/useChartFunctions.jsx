@@ -28,10 +28,11 @@ export default function useChartFunctions({
   async function fetchDataByCurrency(selectedCurrency, timeframeValue) {
     const symbol = selectedCurrency?.name || "TCS";
     const interval =timeframeValue || "5m";
-    console.log(fromDate,toDate,"fromDate,toDate")
+    const exchange = selectedCurrency?.segment || "NSE";
+    // console.log(fromDate,toDate,"fromDate,toDate")
     const response = await apiService.get(
       // `equity/sync-data?symbol=${symbol}&interval=${interval}&fromdate=2026-01-01 09:15&todate=2026-04-30 15:30`,
-      `equity/historical-v2?symbol=${symbol}&interval=${interval}&fromdate=${fromDate} 09:15&todate=${toDate} 15:30`
+      `equity/historical-v2?symbol=${symbol}&interval=${interval}&exchange=${exchange}&fromdate=${fromDate} 09:15&todate=${toDate} 15:30`
     );
     
     if (response) shiftTimeToIST(response);
