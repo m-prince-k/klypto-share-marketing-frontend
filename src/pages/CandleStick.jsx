@@ -8,12 +8,17 @@ import {
   HistogramSeries,
   BaselineSeries,
 } from "lightweight-charts";
+import React from "react";
 // import IndicatorRuleBuilder from "../components/scanner/IndicatorRuleBuilder";
 import { LuCirclePlus, LuCircleMinus } from "react-icons/lu";
 import { RiResetRightLine } from "react-icons/ri";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { FaCode } from "react-icons/fa6";
 import ChartHeader from "../components/tradingModals/ChartHeader";
+import Navbar from "../components/layout/Navbar";
+import LeftWatchlist from "../components/layout/LeftWatchlist";
+import RightSidebar from "../components/layout/RightSidebar";
+import ChartTabs from "../components/layout/ChartTabs";
 
 // import SEO from "../components/SEO";
 import {
@@ -25,8 +30,7 @@ import {
   getIndicatorChartProperties,
 } from "../util/common";
 import SourceCodePanel from "../components/indicator/SourceCodePanel";
-// import ChartRightSidebar from "../components/chart/rightbar/ChartRightSidebar";
-// import ChartLeftSidebar from "../components/chart/leftbar/ChartLeftSidebar";
+
 import {
   IoCloseSharp,
   IoEyeOffOutline,
@@ -40,12 +44,15 @@ import useChartFunctions from "../util/useChartFunctions";
 import { indicatorComponents } from "../components/indicator/IndicatorIndex";
 import { Spinner } from "../components/tradingModals/Spinner";
 import IndicatorBar from "../components/indicator/IndicatorBar";
+import Overview from "../components/tradingModals/Overview";
+import OptionChain from "../components/tradingModals/OptionChain";
 import {
   indicatorConfigDefault,
   resolvePaneKey,
   indicatorStyleDefault,
   PANE_INDICATORS,
 } from "../util/indicatorFunctions";
+import { io } from "socket.io-client";
 
 export default function Candlestick() {
   const chartRef = useRef();
@@ -54,22 +61,26 @@ export default function Candlestick() {
   const seriesRef = useRef(null);
   const indicatorSeriesRef = useRef({});
   const latestIndicatorValuesRef = useRef({});
+  const indicatorDataRef = useRef({});
   const panesRef = useRef({});
   const paneIndexRef = useRef({});
   const syncingRef = useRef(false);
   const fetchedIndicatorsRef = useRef(new Set());
-  const mainChartHeightRef = useRef(500);
+  const socketRef = useRef(null);
+  const [alertResult, setAlertResult] = useState([]);
 
-  const [openForm, setOpenForm] = useState(false);
-  const [timeframeValue, setTimeframeValue] = useState("1d");
+  const [isWatchlistOpen, setIsWatchlistOpen] = useState(true);
+  const [activeTab, setActiveTab] = useState("Chart");
+  const [timeframeValue, setTimeframeValue] = useState("1m");
   const [selectedCurrency, setSelectedCurrency] = useState({
     symbol: "TCS-EQ",
     name: "TCS",
     token: 11536,
     segment: "NSE",
+    expiry: "",
   });
-  const [fromDate, setFromDate] = useState("2026-01-01");
-  const [toDate, setToDate] = useState("2026-04-30");
+  const [fromDate, setFromDate] = useState("2026-03-01");
+  const [toDate, setToDate] = useState("2026-05-07");
   const [selectedIndicator, setSelectedIndicator] = useState([]);
   const [rangeValue, setRangeValue] = useState("1000");
   const [chartType, setChartType] = useState("candlestick");
@@ -84,8 +95,19 @@ export default function Candlestick() {
   const [activeSourceIndicator, setActiveSourceIndicator] = useState(null);
   const [indicatorVisibility, setIndicatorVisibility] = useState({});
   const [activeBarIndicator, setActiveBarIndicator] = useState("");
+  const [indicatorUpdateTrigger, setIndicatorUpdateTrigger] = useState(0);
   const prevTimeframeRef = useRef(timeframeValue);
   const prevCurrencyRef = useRef(selectedCurrency);
+  const prevChartTypeRef = useRef(chartType);
+  const currentCandleRef = useRef(null);
+  const lastCandleTimeRef = useRef(null);
+  const seriesReadyRef = useRef(false);
+  const selectedIndicatorRef = useRef(selectedIndicator);
+  const ohlcvDisplayRef = useRef(null);
+  const IST_OFFSET = 19800;
+  useEffect(() => {
+    selectedIndicatorRef.current = selectedIndicator;
+  }, [selectedIndicator]);
 
   const [indicatorConfigs, setIndicatorConfigs] = useState(
     indicatorConfigDefault,
@@ -93,13 +115,17 @@ export default function Candlestick() {
   const [indicatorStyle, setIndicatorStyle] = useState(indicatorStyleDefault);
   const isUp = liveOhlcv?.close >= liveOhlcv?.open;
   const valueColor = isUp ? "text-green-500" : "text-red-500";
+  const hasPaneIndicators = selectedIndicator.some((ind) =>
+    PANE_INDICATORS.has(ind),
+  );
 
   useEffect(() => {
     if (!selectedIndicator.length) return;
 
     const isContextChange =
       prevTimeframeRef.current !== timeframeValue ||
-      prevCurrencyRef.current !== selectedCurrency;
+      prevCurrencyRef.current !== selectedCurrency ||
+      prevChartTypeRef.current !== chartType;
 
     let indicatorsToFetch = selectedIndicator;
 
@@ -137,17 +163,33 @@ export default function Candlestick() {
           } catch {}
         }
         delete indicatorSeriesRef.current[indicator];
+        delete indicatorDataRef.current[indicator];
       });
     }
 
-    fetchIndicatorData(indicatorsToFetch, selectedCurrency, timeframeValue);
+    setIndicatorLoading(true);
+    fetchIndicatorData(indicatorsToFetch, selectedCurrency, timeframeValue)
+      .then(() => {
+        setIndicatorUpdateTrigger((v) => v + 1);
+      })
+      .finally(() => {
+        setIndicatorLoading(false);
+      });
 
     indicatorsToFetch.forEach((ind) => fetchedIndicatorsRef.current.add(ind));
 
     // update previous values
     prevTimeframeRef.current = timeframeValue;
     prevCurrencyRef.current = selectedCurrency;
-  }, [selectedIndicator, selectedCurrency, timeframeValue, fromDate, toDate]);
+    prevChartTypeRef.current = chartType;
+  }, [
+    selectedIndicator,
+    selectedCurrency,
+    timeframeValue,
+    chartType,
+    fromDate,
+    toDate,
+  ]);
 
   const toggleIndicatorVisibility = (indicator) => {
     const currentVisible = indicatorVisibility[indicator] ?? true;
@@ -319,7 +361,6 @@ export default function Candlestick() {
 
     const chart = createChart(containerRef.current, {
       ...ChartProprties,
-      height: mainChartHeightRef.current,
     });
     chartRef.current = chart;
     attachSync(chart);
@@ -329,58 +370,6 @@ export default function Candlestick() {
       chartRef.current = null;
     };
   }, []); // Run only once
-
-  useEffect(() => {
-    //   WebSocket Trades
-    const socket = new WebSocket("wss://socket.delta.exchange");
-    socket.onopen = () => {
-      socket.send(
-        JSON.stringify({
-          type: "subscribe",
-          payload: {
-            channels: [
-              {
-                name: "v2/ticker",
-                symbols: [selectedCurrency || "BTCUSD"],
-              },
-            ],
-          },
-        }),
-      );
-    };
-
-    let currentCandle = null;
-    socket.onmessage = (event) => {
-      const msg = JSON.parse(event.data);
-      if (!msg?.mark_price || !msg?.timestamp) return;
-
-      const price = Number(msg.mark_price);
-      const intervalSec = TIMEFRAME_TO_SECONDS[timeframeValue];
-      const rawTime = Math.floor(msg.timestamp / intervalSec) * intervalSec;
-      const time = rawTime + 19800; // Shift to IST
-
-      if (!currentCandle || currentCandle.time !== time) {
-        currentCandle = {
-          time,
-          open: price,
-          high: price,
-          low: price,
-          close: price,
-        };
-        setLiveOhlcv(currentCandle);
-      } else {
-        currentCandle.high = Math.max(currentCandle.high, price);
-        currentCandle.low = Math.min(currentCandle.low, price);
-        currentCandle.close = price;
-
-        setLiveOhlcv({ ...currentCandle }); // ← add this line
-      }
-    };
-
-    return () => {
-      socket.close();
-    };
-  }, [selectedCurrency, timeframeValue]);
 
   const toggleIndicator = useCallback((indicator) => {
     setSelectedIndicator((prev) => {
@@ -553,7 +542,7 @@ export default function Candlestick() {
       const Component = indicatorComponents[indicator];
       if (!Component) return null;
 
-      const data = indicatorSeriesRef.current?.[indicator];
+      const data = indicatorDataRef.current?.[indicator];
 
       return (
         <Component
@@ -635,8 +624,22 @@ export default function Candlestick() {
 
       // update candles
       const candle = param.seriesData?.get(seriesRef.current);
-      if (candle) setLiveOhlcv({ ...candle });
-
+      if (candle && ohlcvDisplayRef.current) {
+        const el = ohlcvDisplayRef.current;
+        const isUp = candle.close >= candle.open;
+        const color = isUp ? "#22c55e" : "#ef4444";
+        const o = el.querySelector("[data-o]");
+        const h = el.querySelector("[data-h]");
+        const l = el.querySelector("[data-l]");
+        const c = el.querySelector("[data-c]");
+        if (o) o.textContent = Number(candle.open).toFixed(2);
+        if (h) h.textContent = Number(candle.high).toFixed(2);
+        if (l) l.textContent = Number(candle.low).toFixed(2);
+        if (c) c.textContent = Number(candle.close).toFixed(2);
+        el.querySelectorAll("[data-val]").forEach(
+          (s) => (s.style.color = color),
+        );
+      }
       // update indicators
       updateIndicatorValues(param);
     };
@@ -644,6 +647,15 @@ export default function Candlestick() {
     chart.subscribeCrosshairMove(handler);
     return () => chart.unsubscribeCrosshairMove(handler);
   }, []);
+
+  const { fetchDataByCurrency, fetchIndicatorData } = useChartFunctions({
+    indicatorSeriesRef,
+    indicatorDataRef,
+    latestIndicatorValuesRef,
+    indicatorConfigs,
+    fromDate,
+    toDate,
+  });
 
   // ATTACH MAIN CHART
 
@@ -693,7 +705,17 @@ export default function Candlestick() {
           seriesRef.current = null;
         }
 
-        const data = response?.data || [];
+        // const data = response?.data || [];
+
+        const raw = response?.data || [];
+        const data = raw.map((d) => ({
+          time: Number(d.time), // use exactly as returned by API
+          open: Number(d.open),
+          high: Number(d.high),
+          low: Number(d.low),
+          close: Number(d.close),
+          volume: Number(d.volume),
+        }));
 
         if (!Array.isArray(data) || !data.length) return;
 
@@ -805,9 +827,31 @@ export default function Candlestick() {
             );
 
             seriesRef.current.setData(data);
+            seriesReadyRef.current = true;
         }
+        currentCandleRef.current = data[data.length - 1];
 
-        chartRef.current.timeScale().fitContent();
+        // ✅ Populate OHLCV display on load
+        setTimeout(() => {
+          const last = data[data.length - 1];
+          if (last && ohlcvDisplayRef.current) {
+            const el = ohlcvDisplayRef.current;
+            const isUp = last.close >= last.open;
+            const color = isUp ? "#22c55e" : "#ef4444";
+            const o = el.querySelector("[data-o]");
+            const h = el.querySelector("[data-h]");
+            const l = el.querySelector("[data-l]");
+            const c = el.querySelector("[data-c]");
+            if (o) o.textContent = Number(last.open).toFixed(2);
+            if (h) h.textContent = Number(last.high).toFixed(2);
+            if (l) l.textContent = Number(last.low).toFixed(2);
+            if (c) c.textContent = Number(last.close).toFixed(2);
+            el.querySelectorAll("[data-val]").forEach(
+              (s) => (s.style.color = color),
+            );
+          }
+          chartRef.current?.timeScale().fitContent();
+        }, 150);
       } catch (err) {
         if (!isMounted) return;
         console.error("Chart load error", err);
@@ -822,17 +866,6 @@ export default function Candlestick() {
       isMounted = false;
     };
   }, [chartType, timeframeValue, selectedCurrency, fromDate, toDate]);
-
-  const { fetchDataByCurrency, fetchIndicatorData } = useChartFunctions({
-    chartRef,
-    addSeries,
-    indicatorSeriesRef,
-    indicatorStyle,
-    latestIndicatorValuesRef,
-    indicatorConfigs,
-    fromDate,
-    toDate,
-  });
 
   const zoomCharts = (delta) => {
     const charts = [
@@ -858,108 +891,296 @@ export default function Candlestick() {
     ].filter(Boolean);
     charts.forEach((chart) => chart.timeScale().fitContent());
   };
+
+  useEffect(() => {
+    if (!selectedCurrency || !timeframeValue) return;
+
+    const socket = io("http://192.168.1.9:7000");
+    socketRef.current = socket;
+
+    const intervalSec = TIMEFRAME_TO_SECONDS[timeframeValue];
+
+    socket.on("connect", () => {
+      console.log("✅ SOCKET CONNECTED");
+      socket.emit("getManualHistoricalData", {
+        symbol: selectedCurrency?.symbol,
+        interval: timeframeValue,
+      });
+    });
+
+    socket.on("liveTick", (tick) => {
+      if (tick.symbol !== selectedCurrency?.name) return;
+      if (!seriesRef.current) return;
+
+      let timeInSec = tick.data.time;
+
+      if (typeof timeInSec === "string") {
+        timeInSec = Math.floor(new Date(timeInSec).getTime() / 1000);
+      } else if (typeof timeInSec === "number" && timeInSec > 1e12) {
+        timeInSec = Math.floor(timeInSec / 1000);
+      } else if (typeof timeInSec !== "number") {
+        return;
+      }
+
+      if (!Number.isFinite(timeInSec)) return;
+
+      // ✅ No IST offset — REST and socket are both in same timezone
+      const normalizedTime = Math.floor(timeInSec / intervalSec) * intervalSec;
+      if (!Number.isFinite(normalizedTime) || normalizedTime <= 0) return;
+
+      // ✅ Skip if tick is older than current candle
+      if (
+        currentCandleRef.current?.time &&
+        normalizedTime < currentCandleRef.current.time
+      ) {
+        return;
+      }
+
+      const candleData = {
+        time: normalizedTime,
+        open: Number(tick.data.open),
+        high: Number(tick.data.high),
+        low: Number(tick.data.low),
+        close: Number(tick.data.close),
+        volume: Number(tick.data.volume),
+      };
+
+      currentCandleRef.current = candleData;
+      lastCandleTimeRef.current = normalizedTime;
+
+      try {
+        seriesRef.current.update(candleData);
+      } catch (e) {
+        console.warn("⚠️ series.update failed:", e.message);
+        return;
+      }
+
+      // Direct DOM update — no React state, no flicker
+      if (ohlcvDisplayRef.current) {
+        const el = ohlcvDisplayRef.current;
+        const isUp = candleData.close >= candleData.open;
+        const color = isUp ? "#22c55e" : "#ef4444";
+        const o = el.querySelector("[data-o]");
+        const h = el.querySelector("[data-h]");
+        const l = el.querySelector("[data-l]");
+        const c = el.querySelector("[data-c]");
+        if (o) o.textContent = Number(candleData.open).toFixed(2);
+        if (h) h.textContent = Number(candleData.high).toFixed(2);
+        if (l) l.textContent = Number(candleData.low).toFixed(2);
+        if (c) c.textContent = Number(candleData.close).toFixed(2);
+        el.querySelectorAll("[data-val]").forEach(
+          (s) => (s.style.color = color),
+        );
+      }
+
+      // ✅ Emit live indicator update on every tick
+      const activeIndicators = selectedIndicatorRef.current;
+      if (activeIndicators?.length > 0) {
+        activeIndicators.forEach((ind) => {
+          socket.emit("getLiveIndicatorUpdate", {
+            symbol: selectedCurrency?.name,
+            interval: timeframeValue,
+            type: ind,
+            fromdate: `${fromDate} 09:15`,
+            todate: `${toDate} 15:30`,
+            latestCandle: candleData,
+          });
+        });
+      }
+    });
+
+    // ✅ Live indicator response — update last point only
+    socket.on("liveIndicatorResponse", (payload) => {
+      if (!payload?.success || !payload?.type) return;
+
+      const indicatorType = payload.type;
+      const seriesGroup = indicatorSeriesRef.current?.[indicatorType];
+      if (!seriesGroup) return;
+
+      const dataArray = payload.data;
+      if (!Array.isArray(dataArray) || dataArray.length === 0) return;
+
+      const lastPoint = dataArray[dataArray.length - 1];
+      if (!lastPoint) return;
+
+      // ✅ Use current candle time — guarantees alignment with chart
+      const pointTime =
+        currentCandleRef.current?.time ?? Number(lastPoint.time);
+
+      Object.entries(seriesGroup).forEach(([lineName, series]) => {
+        if (lineName.startsWith("_")) return;
+        if (!series || typeof series.update !== "function") return;
+
+        const value =
+          lastPoint[lineName] ??
+          lastPoint.value ??
+          lastPoint[indicatorType.toLowerCase()];
+
+        if (value == null || !Number.isFinite(Number(value))) return;
+
+        try {
+          series.update({
+            time: pointTime, // ✅ always matches current candle
+            value: Number(value),
+          });
+        } catch (e) {
+          console.warn(
+            `⚠️ Indicator update failed [${indicatorType}][${lineName}]:`,
+            e.message,
+          );
+        }
+      });
+    });
+
+    socket.on("disconnect", () => console.log("❌ SOCKET DISCONNECTED"));
+    socket.on("connect_error", (err) =>
+      console.log("❌ SOCKET ERROR:", err.message),
+    );
+
+    return () => {
+      console.log("🧹 SOCKET CLEANUP");
+      socket.off("liveTick");
+      socket.off("liveIndicatorResponse");
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [selectedCurrency?.name, timeframeValue]); // ✅ single dependency array
   return (
     <>
-      {/* <SEO
-        title="Best Crypto Trading Platform"
-        description="Trade crypto instantly with low fees"
-        keywords="crypto, trading, bitcoin, ethereum"
-        url="https://yourdomain.com/"
-        image="https://yourdomain.com/banner.jpg"
-      /> */}
-      <section className="trading-view-wrapper overflow-x-hidden">
-        <div className="container-fluid p-0 m-0">
-          <div className="row">
-            <div className="col-md-12">
-              <div className="trading-chart-header">
-                <ChartHeader
-                  timeframeValue={timeframeValue}
-                  setTimeframeValue={setTimeframeValue}
-                  rangeValue={rangeValue}
-                  setRangeValue={setRangeValue}
-                  selectedCurrency={selectedCurrency}
+      <Navbar setSelectedCurrency={setSelectedCurrency} />
+      <section
+        className="trading-view-wrapper overflow-hidden"
+        style={{
+          background: "#131722",
+          height: "calc(100vh - 60px)",
+          display: "flex",
+        }}
+      >
+        <div
+          className="container-fluid p-0 m-0"
+          style={{ display: "flex", width: "100%", height: "100%" }}
+        >
+          <div style={{ display: "flex", width: "100%", height: "100%" }}>
+            {/* Left Watchlist */}
+            <div
+              style={{
+                width: isWatchlistOpen ? "300px" : "0px",
+                opacity: isWatchlistOpen ? 1 : 0,
+                overflow: "hidden",
+                height: "100%",
+                transition:
+                  "width 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                flexShrink: 0,
+              }}
+            >
+              <div style={{ width: "300px", height: "100%" }}>
+                <LeftWatchlist
+                  onClose={() => setIsWatchlistOpen(false)}
                   setSelectedCurrency={setSelectedCurrency}
-                  setChartType={setChartType}
-                  chartType={chartType}
-                  selectedIndicator={selectedIndicator}
-                  setSelectedIndicator={setSelectedIndicator}
-                  toggleIndicator={toggleIndicator}
-                  fromDate={fromDate}
-                  toDate={toDate}
-                  setFromDate={setFromDate}
-                  setToDate={setToDate}
+                  alertResult={alertResult}
                 />
               </div>
             </div>
-          </div>
 
-          <div
-            className="row"
-            ref={paneContainerRef}
-            style={{
-              position: "relative",
-              width: getIndicatorChartProperties.width,
-              height: getIndicatorChartProperties.height,
-            }}
-          >
-            {/* <div className="col-md-1 p-0 m-0"> */}
-            {/* <ChartLeftSidebar
-                chartRef={chartRef}
-                containerRef={containerRef}
-              /> */}
-            {indicatorLoading && (
-              <div
-                style={{
-                  position: "fixed",
-                  top: "50%",
-                  left: "50%",
-                  transform: "translate(-50%, -50%)",
-                  zIndex: 1000,
-                }}
-              >
-                <Spinner />
-              </div>
-            )}
-            {renderIndicators()}
-          </div>
-          {/* main chart */}
-          <div className="col-md-7">
+            {/* Main Chart Area */}
             <div
-              ref={containerRef}
               style={{
-                width: ChartProprties.width,
-                height: ChartProprties.height,
-                position: "relative",
-                overflow: "hidden",
+                flex: 1,
+                minWidth: 0, // important to prevent flex items from overflowing
+                borderLeft: isWatchlistOpen ? "1px solid #2a2e39" : "none",
+                borderRight: "1px solid #2a2e39",
                 display: "flex",
                 flexDirection: "column",
+                height: "100%",
+                transition: "border-color 0.3s ease",
               }}
             >
-              {mainChartLoading && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "50%",
-                    left: "50%",
-                    transform: "translate(-50%, -50%)",
-                    zIndex: 1000,
-                  }}
-                >
-                  {/* <Spinner /> */}
-                </div>
-              )}
-              {/* -------------------------------sub-header live Values----------------------- */}
+              <ChartTabs activeTab={activeTab} setActiveTab={setActiveTab} />
+
               <div
-                className="d-flex px-2 py-1 align-items-center gap-2 justify-content-start position-absolute top-0 start-0 z-index-10"
                 style={{
-                  background: "#1e2330",
-                  borderBottom: "1px solid #2e3347",
-                  borderRight: "1px solid #2e3347",
-                  borderBottomRightRadius: 8,
-                  zIndex: 10,
+                  flex: 1,
+                  display: activeTab === "Chart" ? "flex" : "none",
+                  flexDirection: "column",
+                  overflow: "hidden",
                 }}
               >
-                <style>{`
+                <div
+                  className="trading-chart-header"
+                  style={{ padding: 0, flexShrink: 0 }}
+                >
+                  <ChartHeader
+                    timeframeValue={timeframeValue}
+                    setTimeframeValue={setTimeframeValue}
+                    rangeValue={rangeValue}
+                    setRangeValue={setRangeValue}
+                    selectedCurrency={selectedCurrency}
+                    setSelectedCurrency={setSelectedCurrency}
+                    setChartType={setChartType}
+                    chartType={chartType}
+                    selectedIndicator={selectedIndicator}
+                    setSelectedIndicator={setSelectedIndicator}
+                    toggleIndicator={toggleIndicator}
+                    fromDate={fromDate}
+                    toDate={toDate}
+                    setFromDate={setFromDate}
+                    setToDate={setToDate}
+                    setAlertResult={setAlertResult}
+                    alertResult={alertResult}
+                  />
+                </div>
+
+                {/* main chart */}
+                <div
+                  ref={containerRef}
+                  style={{
+                    width: "100%",
+                    flex: 1,
+                    position: "relative",
+                    overflow: "hidden",
+                    display: "flex",
+                    flexDirection: "column",
+                  }}
+                >
+                  {mainChartLoading ? (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "50%",
+                        left: "50%",
+                        transform: "translate(-50%, -50%)",
+                        zIndex: 1000,
+                      }}
+                    >
+                      <Spinner />
+                    </div>
+                  ) : (
+                    indicatorLoading && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "50%",
+                          left: "50%",
+                          transform: "translate(-50%, -50%)",
+                          zIndex: 1000,
+                        }}
+                      >
+                        <Spinner />
+                      </div>
+                    )
+                  )}
+                  {/* -------------------------------sub-header live Values----------------------- */}
+                  <div
+                    className="d-flex px-2 py-1 align-items-center gap-2 justify-content-start position-absolute top-0 start-0 z-index-10"
+                    style={{
+                      background: "#1e2330",
+                      borderBottom: "1px solid #2e3347",
+                      borderRight: "1px solid #2e3347",
+                      borderBottomRightRadius: 8,
+                      zIndex: 10,
+                    }}
+                  >
+                    <style>{`
     @keyframes ping {
       75%, 100% { transform: scale(2); opacity: 0; }
     }
@@ -972,96 +1193,154 @@ export default function Candlestick() {
     }
   `}</style>
 
-                {/* Symbol + Timeframe */}
-                <span
-                  style={{
-                    fontSize: 13,
-                    color: "#94a3b8",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {selectedCurrency?.name} : {timeframeValue} : {selectedCurrency?.exchange}
-                </span>
-
-                {/* Market status dot */}
-                <div
-                  style={{
-                    position: "relative",
-                    width: 12,
-                    height: 12,
-                    flexShrink: 0,
-                  }}
-                >
-                  <span
-                    className="dot-ping"
-                    style={{ background: isMarketOpen ? "#22c55e" : "#f87171" }}
-                  />
-                  <span
-                    style={{
-                      display: "block",
-                      width: 12,
-                      height: 12,
-                      borderRadius: "50%",
-                      background: isMarketOpen ? "#22c55e" : "#f87171",
-                      position: "relative",
-                    }}
-                  />
-                </div>
-
-                {/* OHLC Values */}
-                <div className="d-flex align-items-center gap-1">
-                  {SINGLE_VALUE_CHARTS.includes(chartType) ? (
+                    {/* Symbol + Timeframe */}
                     <span
                       style={{
                         fontSize: 13,
-                        fontWeight: 500,
-                        color: "#60a5fa",
-                        padding: "2px 6px",
+                        color: "#94a3b8",
+                        whiteSpace: "nowrap",
                       }}
                     >
-                      {liveOhlcv?.value}
+                      {selectedCurrency?.symbol} : {timeframeValue}{" "}
+                      {selectedCurrency?.segment}
                     </span>
-                  ) : (
-                    <>
-                      {[
-                        { label: "O", value: liveOhlcv?.open },
-                        { label: "H", value: liveOhlcv?.high },
-                        { label: "L", value: liveOhlcv?.low },
-                        { label: "C", value: liveOhlcv?.close },
-                      ].map(({ label, value }) => (
+
+                    {/* Market status dot */}
+                    <div
+                      style={{
+                        position: "relative",
+                        width: 12,
+                        height: 12,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <span
+                        className="dot-ping"
+                        style={{
+                          background: isMarketOpen ? "#22c55e" : "#f87171",
+                        }}
+                      />
+                      <span
+                        style={{
+                          display: "block",
+                          width: 12,
+                          height: 12,
+                          borderRadius: "50%",
+                          background: isMarketOpen ? "#22c55e" : "#f87171",
+                          position: "relative",
+                        }}
+                      />
+                    </div>
+
+                    {/* OHLC Values */}
+                    {/* OHLC Values - direct DOM, zero re-render */}
+                    <div
+                      className="d-flex align-items-center gap-1"
+                      ref={ohlcvDisplayRef}
+                    >
+                      {SINGLE_VALUE_CHARTS.includes(chartType) ? (
                         <span
-                          key={label}
+                          data-o=""
+                          data-val=""
                           style={{
                             fontSize: 13,
                             fontWeight: 500,
-                            padding: "2px 5px",
-                            whiteSpace: "nowrap",
+                            color: "#60a5fa",
+                            padding: "2px 6px",
                           }}
                         >
-                          <span style={{ color: "#64748b" }}>{label}: </span>
-                          <span className={valueColor}>{value}</span>
+                          --
                         </span>
-                      ))}
-                    </>
-                  )}
-                </div>
-              </div>
+                      ) : (
+                        <>
+                          <span
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 500,
+                              padding: "2px 5px",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            <span style={{ color: "#64748b" }}>O: </span>
+                            <span
+                              data-o=""
+                              data-val=""
+                              style={{ color: "#22c55e" }}
+                            >
+                              --
+                            </span>
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 500,
+                              padding: "2px 5px",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            <span style={{ color: "#64748b" }}>H: </span>
+                            <span
+                              data-h=""
+                              data-val=""
+                              style={{ color: "#22c55e" }}
+                            >
+                              --
+                            </span>
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 500,
+                              padding: "2px 5px",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            <span style={{ color: "#64748b" }}>L: </span>
+                            <span
+                              data-l=""
+                              data-val=""
+                              style={{ color: "#22c55e" }}
+                            >
+                              --
+                            </span>
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 500,
+                              padding: "2px 5px",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            <span style={{ color: "#64748b" }}>C: </span>
+                            <span
+                              data-c=""
+                              data-val=""
+                              style={{ color: "#22c55e" }}
+                            >
+                              --
+                            </span>
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
 
-              {/* -----------------INDICATOR BAR------------------- */}
+                  {/* -----------------INDICATOR BAR------------------- */}
 
-              {selectedIndicator?.length > 0 && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: 40,
-                    left: 8,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 4,
-                    zIndex: 50,
-                  }}
-                >
-                  <style>{`
+                  {selectedIndicator?.length > 0 && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: 40,
+                        left: 8,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 4,
+                        zIndex: 50,
+                      }}
+                    >
+                      <style>{`
     .ind-btn {
       background: transparent;
       border: none;
@@ -1075,119 +1354,130 @@ export default function Candlestick() {
     .ind-btn:hover { color: #e2e8f0; }
   `}</style>
 
-                  {selectedIndicator &&
-                    selectedIndicator.map((indicator, index) => {
-                      const normalizedType = indicator.replace(/[\s/%]+/g, "");
-                      const value = liveIndicatorData[normalizedType];
-                      return (
-                        <div
-                          key={index}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            gap: 12,
-                            background: "#1e2330a4",
-                            border: "1px solid #2e3347",
-                            borderRadius: 6,
-                            padding: "0 10px",
-                            height: 32,
-                            fontSize: 12,
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {/* Label + value */}
-                          <span
-                            style={{
-                              color: "#94a3b8",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6,
-                            }}
-                          >
-                            <span style={{ color: "#cbd5e1", fontWeight: 500 }}>
-                              {indicator}
-                            </span>
-                            {" : "}
-                            {indicatorConfigs?.[normalizedType]?.length ??
-                              ""}{" "}
-                            {indicatorConfigs?.[normalizedType]?.source ?? ""}
-                            <span style={{ display: "flex", gap: 6 }}>
-                              {renderValue(normalizedType, value)}
-                            </span>
-                          </span>
-
-                          {/* Action buttons */}
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 4,
-                            }}
-                          >
-                            <button
-                              className="ind-btn"
-                              title={
-                                indicatorVisibility[normalizedType]
-                                  ? "Hide Indicator"
-                                  : "Show Indicator"
-                              }
-                              onClick={() =>
-                                toggleIndicatorVisibility(normalizedType)
-                              }
+                      {selectedIndicator &&
+                        selectedIndicator.map((indicator, index) => {
+                          const normalizedType = indicator.replace(
+                            /[\s/%]+/g,
+                            "",
+                          );
+                          const value = liveIndicatorData[normalizedType];
+                          return (
+                            <div
+                              key={index}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: 12,
+                                background: "#1e2330a4",
+                                border: "1px solid #2e3347",
+                                borderRadius: 6,
+                                padding: "0 10px",
+                                height: 32,
+                                fontSize: 12,
+                                whiteSpace: "nowrap",
+                              }}
                             >
-                              {indicatorVisibility[normalizedType] ? (
-                                <IoEyeOutline size={15} />
-                              ) : (
-                                <IoEyeOffOutline size={15} />
+                              {/* Label + value */}
+                              <span
+                                style={{
+                                  color: "#94a3b8",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 6,
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    color: "#cbd5e1",
+                                    fontWeight: 500,
+                                  }}
+                                >
+                                  {indicator}
+                                </span>
+                                {" : "}
+                                {indicatorConfigs?.[normalizedType]?.length ??
+                                  ""}{" "}
+                                {indicatorConfigs?.[normalizedType]?.source ??
+                                  ""}
+                                <span style={{ display: "flex", gap: 6 }}>
+                                  {renderValue(normalizedType, value)}
+                                </span>
+                              </span>
+
+                              {/* Action buttons */}
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 4,
+                                }}
+                              >
+                                <button
+                                  className="ind-btn"
+                                  title={
+                                    indicatorVisibility[normalizedType]
+                                      ? "Hide Indicator"
+                                      : "Show Indicator"
+                                  }
+                                  onClick={() =>
+                                    toggleIndicatorVisibility(normalizedType)
+                                  }
+                                >
+                                  {indicatorVisibility[normalizedType] ? (
+                                    <IoEyeOutline size={15} />
+                                  ) : (
+                                    <IoEyeOffOutline size={15} />
+                                  )}
+                                </button>
+
+                                <button
+                                  className="ind-btn"
+                                  title="Indicator Settings"
+                                  onClick={() => {
+                                    setActiveBarIndicator(indicator);
+                                    setIndicatorProperty((prev) => !prev);
+                                  }}
+                                >
+                                  <IoSettingsOutline size={15} />
+                                </button>
+
+                                <button
+                                  className="ind-btn"
+                                  title="Source Code"
+                                  onClick={() => {
+                                    setActiveSourceIndicator(indicator);
+                                    setShowSourcePanel(true);
+                                  }}
+                                >
+                                  <FaCode size={15} />
+                                </button>
+
+                                <button
+                                  className="ind-btn"
+                                  title="Remove"
+                                  onClick={() =>
+                                    removeIndicator(normalizedType)
+                                  }
+                                >
+                                  <IoCloseSharp size={15} />
+                                </button>
+                              </div>
+
+                              {showAlertForm && (
+                                <IndicatorAlert
+                                  onClose={closeAlert}
+                                  value={value}
+                                  liveOhlcv={liveOhlcv}
+                                  symbol={selectedCurrency}
+                                />
                               )}
-                            </button>
-
-                            <button
-                              className="ind-btn"
-                              title="Indicator Settings"
-                              onClick={() => {
-                                setActiveBarIndicator(indicator);
-                                setIndicatorProperty((prev) => !prev);
-                              }}
-                            >
-                              <IoSettingsOutline size={15} />
-                            </button>
-
-                            <button
-                              className="ind-btn"
-                              title="Source Code"
-                              onClick={() => {
-                                setActiveSourceIndicator(indicator);
-                                setShowSourcePanel(true);
-                              }}
-                            >
-                              <FaCode size={15} />
-                            </button>
-
-                            <button
-                              className="ind-btn"
-                              title="Remove"
-                              onClick={() => removeIndicator(normalizedType)}
-                            >
-                              <IoCloseSharp size={15} />
-                            </button>
-                          </div>
-
-                          {showAlertForm && (
-                            <IndicatorAlert
-                              onClose={closeAlert}
-                              value={value}
-                              liveOhlcv={liveOhlcv}
-                              symbol={selectedCurrency}
-                            />
-                          )}
-                        </div>
-                      );
-                    })}
-                </div>
-              )}
-              {/* {selectedIndicator.map((indicator, index) => {
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                  {/* {selectedIndicator.map((indicator, index) => {
                 const value = liveIndicatorData[indicator];
                 const paneIndex = paneIndexRef.current[indicator];
                 if (paneIndex === undefined || paneIndex === 0) return null;
@@ -1209,14 +1499,69 @@ export default function Candlestick() {
                   />
                 );
               })} */}
+                </div>
+
+                {/* Indicator Panes */}
+                <div
+                  ref={paneContainerRef}
+                  style={{
+                    position: "relative",
+                    width: "100%",
+                    height: hasPaneIndicators
+                      ? getIndicatorChartProperties().height
+                      : 0,
+                    display: hasPaneIndicators ? "block" : "none",
+                  }}
+                ></div>
+
+                {/* Render Indicators */}
+                <React.Fragment>{renderIndicators()}</React.Fragment>
+              </div>
+
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  borderLeft: isWatchlistOpen ? "1px solid #2a2e39" : "none",
+                  borderRight: "1px solid #2a2e39",
+                  display: activeTab === "Overview" ? "flex" : "none",
+                  flexDirection: "column",
+                  height: "100%",
+                }}
+              >
+                <Overview
+                  key={selectedCurrency?.name}
+                  selectedCurrency={selectedCurrency}
+                />
+              </div>
+
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  borderLeft: isWatchlistOpen ? "1px solid #2a2e39" : "none",
+                  borderRight: "1px solid #2a2e39",
+                  display: activeTab === "Option Chain" ? "flex" : "none",
+                  flexDirection: "column",
+                  height: "100%",
+                }}
+              >
+                <OptionChain
+                  key={selectedCurrency?.name}
+                  selectedCurrency={selectedCurrency}
+                />
+              </div>
+            </div>
+
+            {/* Right Sidebar */}
+            <div style={{ width: "70px", height: "100%", flexShrink: 0 }}>
+              <RightSidebar
+                isWatchlistOpen={isWatchlistOpen}
+                toggleWatchlist={() => setIsWatchlistOpen(!isWatchlistOpen)}
+              />
             </div>
           </div>
-          {/* <div className="col-md-3">
-            <ChartRightSidebar />
-          </div> */}
         </div>
-        {/* </div> */}
-
         <SourceCodePanel
           show={showSourcePanel}
           indicator={activeSourceIndicator}

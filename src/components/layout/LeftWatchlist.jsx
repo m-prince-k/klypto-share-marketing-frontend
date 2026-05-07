@@ -1,0 +1,274 @@
+import React, { useState, useEffect } from "react";
+import { FiSearch, FiSettings, FiX, FiPlus, FiMaximize2 } from "react-icons/fi";
+import { BsArrowUp, BsArrowDown } from "react-icons/bs";
+import apiService from "../../services/apiServices";
+import { io } from "socket.io-client";
+
+const LeftWatchlist = ({ onClose, setSelectedCurrency, alertResult }) => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [stocksData, setStocksData] = useState([]);
+// console.log(stocksData, "stocksData")
+//   console.log(alertResult, "alertResult")
+ useEffect(() => {
+    const fetchStocks = async () => {
+      try {
+        const response = await apiService.get("/equity/stocks");
+        if (response && response.stocks) {
+          setStocksData(response.stocks);
+        }
+      } catch (error) {
+        console.error("Error fetching stocks:", error);
+      }
+    };
+
+    fetchStocks(); // Initial fetch
+
+    const socket = io("http://192.168.1.9:7000");
+
+    socket.on("getAllStocks", (data) => {
+      if (data && data.stocks) {
+        setStocksData(data.stocks);
+      }
+    });
+
+    return () => {
+      socket.off("getAllStocks");
+      socket.disconnect();
+    };
+  }, []);
+
+  const styles = {
+    container: {
+      display: "flex",
+      flexDirection: "column",
+      height: "calc(100vh - 60px)", // Assuming navbar is 60px
+      backgroundColor: "#ffffff", // Light theme based on user's image snippet for the left part? Wait, user asked for darktheme. Let me make it dark.
+      // Wait, user explicitly said "this is the view i want for my application in darktheme". The image looks light theme, but they WANT dark theme.
+      background: "#131722",
+      color: "#d1d4dc",
+      borderRight: "1px solid #2a2e39",
+      fontFamily:
+        "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    },
+    header: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: "12px 16px",
+      borderBottom: "1px solid #2a2e39",
+      fontWeight: "600",
+      fontSize: "0.95rem",
+    },
+    headerIcons: {
+      display: "flex",
+      gap: "12px",
+      color: "#787b86",
+      cursor: "pointer",
+    },
+    tabsContainer: {
+      display: "flex",
+      padding: "0 16px",
+      borderBottom: "1px solid #2a2e39",
+      gap: "16px",
+    },
+    tabActive: {
+      padding: "12px 0",
+      color: "#2962ff",
+      borderBottom: "2px solid #2962ff",
+      fontWeight: "500",
+      fontSize: "0.9rem",
+      cursor: "pointer",
+    },
+    searchContainer: {
+      padding: "12px 16px",
+      borderBottom: "1px solid #2a2e39",
+    },
+    searchBox: {
+      display: "flex",
+      alignItems: "center",
+      backgroundColor: "#2a2e39",
+      borderRadius: "4px",
+      padding: "6px 12px",
+    },
+    searchInput: {
+      border: "none",
+      background: "transparent",
+      color: "#d1d4dc",
+      outline: "none",
+      width: "100%",
+      marginLeft: "8px",
+      fontSize: "0.85rem",
+    },
+    listContainer: {
+      flex: 1,
+      overflowY: "auto",
+    },
+    listItem: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: "10px 16px",
+      borderBottom: "1px solid #1e222d",
+      cursor: "pointer",
+    },
+    stockLeft: {
+      display: "flex",
+      flexDirection: "column",
+    },
+    stockName: {
+      fontWeight: "600",
+      fontSize: "0.85rem",
+      color: "#d1d4dc",
+      display: "flex",
+      alignItems: "center",
+      gap: "4px",
+    },
+    segment: {
+      fontSize: "0.6rem",
+      color: "#787b86",
+    },
+    stockRight: {
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "flex-end",
+    },
+    ltp: {
+      fontWeight: "600",
+      fontSize: "0.85rem",
+      display: "flex",
+      alignItems: "center",
+      gap: "4px",
+    },
+    changeData: {
+      fontSize: "0.75rem",
+    },
+    footer: {
+      padding: "12px 16px",
+      borderTop: "1px solid #2a2e39",
+      fontSize: "0.8rem",
+      color: "#2962ff",
+      cursor: "pointer",
+      display: "flex",
+      justifyContent: "space-between",
+    },
+  };
+
+  return (
+    <div style={styles.container}>
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: #131722;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #2a2e39;
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #363a45;
+        }
+      `}</style>
+      <div style={styles.header}>
+        <span>Watchlist</span>
+        <div style={styles.headerIcons}>
+          <FiSettings />
+          <FiX onClick={onClose} />
+        </div>
+      </div>
+
+      <div style={styles.tabsContainer}>
+        <div style={styles.tabActive}>mywatchlist</div>
+        <div
+          style={{
+            ...styles.tabActive,
+            color: "#787b86",
+            borderBottom: "none",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <FiPlus /> <FiMaximize2 size={12} />
+        </div>
+      </div>
+
+      <div style={styles.searchContainer}>
+        <div style={styles.searchBox}>
+          <FiSearch color="#787b86" size={14} />
+          <input
+            style={styles.searchInput}
+            placeholder="Search"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <FiSettings color="#787b86" size={14} style={{ cursor: "pointer" }} />
+        </div>
+      </div>
+
+      <div className="custom-scrollbar" style={styles.listContainer}>
+        {/* {alertResult?.length && alertResult */}
+        {stocksData
+          .filter((s) =>
+            s.name.toLowerCase().includes(searchTerm.toLowerCase()),
+            // s.symbol.toLowerCase().includes(searchTerm.toLowerCase()),
+
+          )
+          .map((stock, idx) => {
+            const isPositive = parseFloat(stock.percent_change) >= 0;
+            const color = isPositive ? "#22ab94" : "#f23645"; // TradingView green/red
+            const Arrow = isPositive ? "▲" : "▼";
+
+            return (
+              <div
+                key={idx}
+                style={styles.listItem}
+                onClick={() =>
+                  setSelectedCurrency({
+                    symbol: stock.symbol,
+                    name: stock.name,
+                    token: stock.token,
+                    segment: stock.segment || "NSE",
+                    type: stock.type || "currency",
+                    userCode: stock.userCode,
+                  })
+                }
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.backgroundColor = "#2a2e39")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.backgroundColor = "transparent")
+                }
+              >
+                <div style={styles.stockLeft}>
+                  <div style={styles.stockName} >
+                    {stock.name}{stock.symbol} {stock.rsi}
+                    {/* <span className="text-xs text-gray-500">{stock.userCode}</span> */}
+                    <span style={styles.segment}>{stock.segment}</span>
+                  </div>
+                </div>
+                <div style={styles.stockRight}>
+                  <div style={{ ...styles.ltp, color }}>
+                    {stock.ltp} <span className="ml-2"> {Arrow} </span>
+                  </div>
+                  <div style={{ ...styles.changeData, color }}>
+                    {stock.change} (
+                    {isPositive && stock.percent_change > 0 ? "+" : ""}
+                    {stock.percent_change}%)
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+      </div>
+
+      {/*<div style={styles.footer}>
+        <span>OPTIONS QUICK LIST</span>
+        <span>{">"}</span>
+      </div>*/}
+    </div>
+  );
+};
+
+export default LeftWatchlist;

@@ -440,7 +440,7 @@ const OrderBook = ({ orders, setOrders }) => {
                     >
                       {o.stock}
                     </td>
-                    <td style={tdStyle}>{o.exchange}</td>
+                    <td style={tdStyle}>{o.segment}</td>
                     <td style={tdStyle}>
                       <span
                         style={{

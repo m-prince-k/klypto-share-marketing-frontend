@@ -4,12 +4,12 @@ import { getToken } from "../pages/auth/protected";
 // 🔹 Create axios instance
 const api = axios.create({
   // baseURL: "https://loiteringly-homeliest-breana.ngrok-free.dev",
-  baseURL: "http://192.168.1.5:9000", // change to your API
+  baseURL: "http://192.168.1.9:7000", // change to your API
   timeout: 600000, // 1 min
   headers: {
     "Content-Type": "application/json",
   },
-});
+})
 
 // 🔹 Request Interceptor (Auth, logging, etc.)
 api.interceptors.request.use((config) => {

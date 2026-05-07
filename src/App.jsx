@@ -7,6 +7,7 @@ import Dashboard from "./pages/dashboard/Dashboard";
 import Signup from "./pages/auth/signup";
 import Login from "./pages/auth/login";
 import { ProtectedRoute } from "./pages/auth/ProtectedRoute";
+import Testing from "./pages/Testing";
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/testing" element={<Testing />} />
 
           {/* Protected Routes */}
           <Route element={<ProtectedRoute />}>

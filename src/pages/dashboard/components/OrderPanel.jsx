@@ -126,7 +126,7 @@ const OrderPanel = ({
         const list = res?.data || [];
 
         // ✅ Get NSE data only
-        const nseData = list.find((item) => item.exchange === "NSE");
+        const nseData = list.find((item) => item.segment === "NSE");
 
         if (!nseData) {
           console.warn("⚠️ NSE data not found");
@@ -266,7 +266,7 @@ const OrderPanel = ({
       tradingsymbol: stock, // e.g. SBIN-EQ
       symboltoken: selectedStock.token, // from stock list
       transactiontype: ACTION_MAP[selectedAction], // BUY / SELL
-      exchange: "NSE",
+      segment: "NSE",
       ordertype: orderType, // MARKET / LIMIT
       producttype:
         product === "MIS"

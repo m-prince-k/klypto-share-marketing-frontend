@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { IoCloseSharp } from "react-icons/io5";
 import { FiSearch } from "react-icons/fi";
 import { GrBitcoin } from "react-icons/gr";
@@ -8,8 +8,8 @@ import { Spinner } from "./Spinner";
 import apiService from "../../services/apiServices";
 import { useDebounce } from "../../util/common";
 import { getStockLogo } from "../../util/stockSymbol/helper";
-import NSE from "../../../public/images/NSE.svg";
-import BSE from "../../../public/images/BSE.svg";
+import NSE from "../../assets/NSE.svg";
+import BSE from "../../assets/BSE.svg";
 
 export const ListingModal = ({
   isOpen,
@@ -20,6 +20,8 @@ export const ListingModal = ({
   selectedIndicator,
   setSelectedIndicator,
   toggleIndicator,
+  setAlertResult,
+  alertResult,
 }) => {
   const [indicators, setIndicators] = useState([]);
   const [currencies, setCurrencies] = useState([]);
@@ -34,6 +36,51 @@ export const ListingModal = ({
   const [futures, setFutures] = useState([]);
   const [options, setOptions] = useState([]);
 
+  const [rsiValue, setRsiValue] = useState("");
+  const [alertLoading, setAlertLoading] = useState(false);
+  const [alertError, setAlertError] = useState(null);
+  const intervalRef = useRef(null);
+
+const handleSubmitAlert = () => {
+  if (!rsiValue) return;
+
+  setAlertLoading(true);
+  setAlertError(null);
+  setAlertResult(null);
+
+  // clear old interval if any
+  if (intervalRef.current) {
+    clearInterval(intervalRef.current);
+  }
+
+  const fetchRSI = async () => {
+    try {
+      const res = await apiService.post(
+        `equity/rsi-scanner?interval=1d&fromDate=2026-04-01&toDate=2026-05-06`,
+        {
+          rsi_threshold: Number(rsiValue),
+        }
+      );
+
+      const data = res?.data || res;
+
+      // ✅ just update data (NO STOP, NO CLOSE)
+      setAlertResult(data);
+
+    } catch (err) {
+      console.error(err);
+      setAlertError("Failed to fetch RSI data");
+    } finally {
+      setAlertLoading(false); // only first time matters
+    }
+  };
+
+  // 🔥 first instant call
+  fetchRSI();
+
+  // 🔁 keep hitting every 2 sec
+  intervalRef.current = setInterval(fetchRSI, 200000);
+};
   const debouncedIndicator = useDebounce(searchIndicator, 500);
 
   // 🔥 Fetch Indicators
@@ -54,14 +101,6 @@ export const ListingModal = ({
       setLoading(false);
     }
   }
-
-  const staticCurrencies = [
-    { symbol: "USDINR", name: "US Dollar / Indian Rupee" },
-    { symbol: "EURINR", name: "Euro / Indian Rupee" },
-    { symbol: "GBPINR", name: "British Pound / Indian Rupee" },
-    { symbol: "JPYINR", name: "Japanese Yen / Indian Rupee" },
-    { symbol: "AUDINR", name: "Australian Dollar / Indian Rupee" },
-  ];
 
   // 🔥 Fetch Stocks (Currencies replaced)
   async function fetchCurrencies() {
@@ -85,7 +124,7 @@ export const ListingModal = ({
   async function fetchFutures() {
     try {
       setLoading(true);
-      const res = await apiService.get("equity/futures");
+      const res = await apiService.get("futures/symbols");
       console.log("FUTURES:", res);
       setFutures(res?.data || []);
     } catch (err) {
@@ -110,9 +149,30 @@ export const ListingModal = ({
   }
 
   useEffect(() => {
-    if (title === "Indicators") fetchIndicators();
-    if (title === "Symbol Search") fetchCurrencies();
-  }, [title]);
+    if (title === "Indicators") {
+      fetchIndicators();
+      return;
+    }
+
+    if (title === "Symbol Search") {
+      if (activeTab === "ALL") {
+        if (equity.length === 0) fetchCurrencies();
+        if (futures.length === 0) fetchFutures();
+        if (options.length === 0) fetchOptions();
+      }
+      if (activeTab === "EQUITY" && equity.length === 0) {
+        fetchCurrencies();
+      }
+
+      if (activeTab === "FUTURES" && futures.length === 0) {
+        fetchFutures();
+      }
+
+      if (activeTab === "OPTIONS" && options.length === 0) {
+        fetchOptions();
+      }
+    }
+  }, [title, activeTab]);
 
   // 🔍 Indicator Filter
   const filteredIndicators = (indicators ?? []).filter((item) => {
@@ -177,14 +237,29 @@ export const ListingModal = ({
     });
 
   // 🔥 Normalize + Merge
-  const normalize = (item, type) => ({
-    name: item?.name,
-    symbol: item?.actualSymbol, // ✅ important
-    token: item?.token,
-    exchange: item?.segment,
-    userCode: item?.userCode,
-    type,
-  });
+  const normalize = (item, type) => {
+    if (type === "FUTURES") {
+      return {
+        name: item?.name,
+        symbol: item?.symbol, // ✅ correct field
+        token: item?.token,
+        segment: item?.segment,
+        userCode: item?.userCode,
+        type,
+        expiry: item?.expiry, // optional but useful
+      };
+    }
+
+    // EQUITY / OPTIONS
+    return {
+      name: item?.name,
+      symbol: item?.actualSymbol, // ✅ equity uses this
+      token: item?.token,
+      segment: item?.segment,
+      userCode: item?.userCode,
+      type,
+    };
+  };
 
   const mergedList = [
     ...equity.map((e) => normalize(e, "EQUITY")),
@@ -212,7 +287,7 @@ export const ListingModal = ({
     return (
       item?.name?.toLowerCase().includes(search) ||
       item?.symbol?.toLowerCase().includes(search) ||
-      item?.exchange?.toLowerCase().includes(search) ||
+      item?.segment?.toLowerCase().includes(search) ||
       item?.userCode?.toLowerCase().includes(search)
     );
   });
@@ -314,7 +389,7 @@ export const ListingModal = ({
                             symbol: item.symbol,
                             name: item.name,
                             token: item.token,
-                            exchange: item.exchange,
+                            segment: item.segment,
                             type: item.type,
                             userCode: item.userCode,
                           });
@@ -335,17 +410,28 @@ export const ListingModal = ({
                           />
                           <div className="text-uppercase fw-medium small">
                             {item?.name} ({item?.symbol})
+                            {item?.type === "FUTURES" && (
+                              <span
+                                style={{
+                                  fontSize: "11px",
+                                  color: "#888",
+                                  marginLeft: 6,
+                                }}
+                              >
+                                {item.expiry}
+                              </span>
+                            )}
                           </div>
                         </div>
 
                         <div className="text-end d-flex gap-2 align-items-center">
-                          <small className="text-muted">{item.exchange}</small>
+                          <small className="text-muted">{item.segment}</small>
                           <img
                             src={
-                              item.exchange?.toLowerCase() === "nse" ? NSE : BSE
+                              item.segment?.toLowerCase() === "nse" ? NSE : BSE
                             }
                             className="rounded-full"
-                            alt={item.exchange}
+                            alt={item.segment}
                           />
                         </div>
                       </ListGroup.Item>
@@ -402,8 +488,41 @@ export const ListingModal = ({
 
         {/* ================= ALERT ================= */}
         {title === "Alerts" && (
-          <div>
-            <h1>Create Alert</h1>
+          <div className="mt-3" style={{ color: "black" }}>
+            <h5>Create RSI Alert</h5>
+
+            <InputGroup className="mb-3">
+              <Form.Control
+                type="number"
+                placeholder="Enter RSI Threshold (e.g. 70)"
+                value={rsiValue}
+                onChange={(e) => setRsiValue(e.target.value)}
+              />
+            </InputGroup>
+
+            <button
+              className="btn btn-primary w-100"
+              onClick={handleSubmitAlert}
+              disabled={alertLoading}
+            >
+              {alertLoading ? "Scanning..." : "Submit"}
+            </button>
+
+            {/* Result */}
+            <div
+              className="mt-3"
+              style={{ maxHeight: "290px", overflowY: "auto" }}
+            >
+              {alertError && (
+                <div className="text-danger small">{alertError}</div>
+              )}
+
+              {alertResult && (
+                <pre style={{ fontSize: "12px" }}>
+                  {JSON.stringify(alertResult, null, 2)}
+                </pre>
+              )}
+            </div>
           </div>
         )}
       </div>

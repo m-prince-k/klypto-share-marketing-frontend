@@ -16,7 +16,7 @@ import ProfileDropDown from "../auth/profile/ProfileDropDown";
 const d = {
   bar: {
     display: "flex", alignItems: "center", gap: 12,
-    padding: "8px 16px",
+    padding: "4px 16px",
     background: "#0d1117",
     borderBottom: "1px solid #1f2937",
     flexWrap: "wrap",
@@ -106,6 +106,8 @@ export default function ChartHeader({
   toDate,
   setFromDate,
   setToDate,
+  setAlertResult,
+  alertResult,
 }) {
   const navigate = useNavigate();
   const [timeframe, setTimeframe] = useState(60);
@@ -234,8 +236,11 @@ export default function ChartHeader({
 
         {/* Spacer */}
         <div style={{ flex: 1 }} />
+        <button title="Create Alert" onClick={() => openModal("Alerts")} style={d.btn}>
+          Create Alert
+        </button>
 
-        {/* Auth button */}
+        {/* Auth button
         {isAuthenticated ? (
           <button title="Logout" onClick={() => { logout(); navigate("/login"); }} style={d.btnPrimary}>
             <span>Logout</span>
@@ -244,9 +249,9 @@ export default function ChartHeader({
           <button title="Signup" onClick={() => navigate("/signup")} style={d.btnPrimary}>
             <span>Signup</span>
           </button>
-        )}
+        )} */}
 
-        <ProfileDropDown />
+        {/* <ProfileDropDown /> */}
       </div>
 
       <ListingModal
@@ -258,6 +263,8 @@ export default function ChartHeader({
         selectedIndicator={selectedIndicator}
         setSelectedIndicator={setSelectedIndicator}
         toggleIndicator={toggleIndicator}
+        setAlertResult={setAlertResult}
+        alertResult={alertResult}
       />
     </div>
   );
