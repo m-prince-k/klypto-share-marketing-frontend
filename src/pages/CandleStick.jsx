@@ -73,11 +73,10 @@ export default function Candlestick() {
   const [activeTab, setActiveTab] = useState("Chart");
   const [timeframeValue, setTimeframeValue] = useState("1m");
   const [selectedCurrency, setSelectedCurrency] = useState({
-    symbol: "TCS-EQ",
-    name: "TCS",
-    token: 11536,
-    segment: "NSE",
-    expiry: "",
+    symbol: "GOLD",
+    name: "GOLD",
+    token: 459277,
+    segment: "MCX",
   });
   const [fromDate, setFromDate] = useState("2026-03-01");
   const [toDate, setToDate] = useState("2026-05-07");
@@ -105,6 +104,7 @@ export default function Candlestick() {
   const selectedIndicatorRef = useRef(selectedIndicator);
   const ohlcvDisplayRef = useRef(null);
   const IST_OFFSET = 19800;
+  
   useEffect(() => {
     selectedIndicatorRef.current = selectedIndicator;
   }, [selectedIndicator]);
@@ -655,6 +655,7 @@ export default function Candlestick() {
     indicatorConfigs,
     fromDate,
     toDate,
+    socketRef,
   });
 
   // ATTACH MAIN CHART
@@ -671,202 +672,436 @@ export default function Candlestick() {
   }, [indicatorSeriesRef.current, timeframeValue]);
 
   // Main useEffect for chart type/data changes
+  // useEffect(() => {
+  //   if (!chartRef.current) return;
+
+  //   let isMounted = true;
+
+  //   const loadChart = async () => {
+  //     try {
+  //       setMainChartLoading(true);
+
+  //       // remove previous series immediately to avoid showing old data
+  //       if (seriesRef.current) {
+  //         try {
+  //           chartRef.current.removeSeries(seriesRef.current);
+  //         } catch (e) {}
+  //         seriesRef.current = null;
+  //       }
+
+  //       const response = await fetchDataByCurrency(
+  //         selectedCurrency,
+  //         timeframeValue,
+  //         fromDate,
+  //         toDate,
+  //       );
+
+  //       if (!isMounted) return;
+
+  //       // Ensure we remove any series that might have been added concurrently
+  //       if (seriesRef.current) {
+  //         try {
+  //           chartRef.current.removeSeries(seriesRef.current);
+  //         } catch (e) {}
+  //         seriesRef.current = null;
+  //       }
+
+  //       const raw = response?.data?.[0]?.data || [];
+  //       const data = raw.map((d) => ({
+  //         time: Number(d.time), // use exactly as returned by API
+  //         open: Number(d.open),
+  //         high: Number(d.high),
+  //         low: Number(d.low),
+  //         close: Number(d.close),
+  //         volume: Number(d.volume),
+  //       }));
+
+  //       if (!Array.isArray(data) || !data.length) return;
+
+  //       switch (chartType) {
+  //         case "line":
+  //           seriesRef.current = chartRef.current.addSeries(
+  //             LineSeries,
+  //             chartSeriesStyles.line,
+  //           );
+
+  //           seriesRef.current.setData(
+  //             data.map((d) => ({
+  //               time: d.time,
+  //               value: Number(d.close),
+  //             })),
+  //           );
+  //           break;
+
+  //         case "bar":
+  //           seriesRef.current = chartRef.current.addSeries(
+  //             BarSeries,
+  //             chartSeriesStyles.bar,
+  //           );
+
+  //           seriesRef.current.setData(
+  //             data.map((d) => ({
+  //               time: d.time,
+  //               open: d.open,
+  //               high: d.high,
+  //               low: d.low,
+  //               close: d.close,
+  //             })),
+  //           );
+  //           break;
+
+  //         case "area":
+  //           seriesRef.current = chartRef.current.addSeries(
+  //             AreaSeries,
+  //             chartSeriesStyles.area,
+  //           );
+
+  //           seriesRef.current.setData(
+  //             data.map((d) => ({
+  //               time: d.time,
+  //               value: Number(d.close),
+  //             })),
+  //           );
+  //           break;
+
+  //         case "baseline":
+  //           seriesRef.current = chartRef.current.addSeries(BaselineSeries, {
+  //             ...chartSeriesStyles.baseline,
+  //             baseValue: {
+  //               type: "price",
+  //               price: Number(data[0]?.close ?? 0),
+  //             },
+  //           });
+
+  //           seriesRef.current.setData(
+  //             data.map((d) => ({
+  //               time: d.time,
+  //               value: Number(d.close),
+  //             })),
+  //           );
+  //           break;
+
+  //         case "histogram":
+  //           seriesRef.current = chartRef.current.addSeries(
+  //             HistogramSeries,
+  //             chartSeriesStyles.histogram,
+  //           );
+
+  //           seriesRef.current.setData(
+  //             data.map((d, index, arr) => {
+  //               const prev = arr[index - 1];
+  //               const isUp = prev ? d.close >= prev.close : true;
+
+  //               return {
+  //                 time: d.time,
+  //                 value: d.volume,
+  //                 color: isUp ? "#22c55e" : "#ef4444",
+  //               };
+  //             }),
+  //           );
+  //           break;
+
+  //         case "heikinashi":
+  //           seriesRef.current = chartRef.current.addSeries(
+  //             CandlestickSeries,
+  //             chartSeriesStyles.candlestick,
+  //           );
+
+  //           seriesRef.current.setData(convertToHeikinAshi(data));
+  //           break;
+
+  //         case "hollowcandles":
+  //           seriesRef.current = chartRef.current.addSeries(
+  //             CandlestickSeries,
+  //             chartSeriesStyles.hollowcandles,
+  //           );
+
+  //           seriesRef.current.setData(data);
+  //           break;
+
+  //         default:
+  //           seriesRef.current = chartRef.current.addSeries(
+  //             CandlestickSeries,
+  //             chartSeriesStyles.candlestick,
+  //           );
+
+  //           seriesRef.current.setData(data);
+  //           seriesReadyRef.current = true;
+  //       }
+  //       currentCandleRef.current = data[data.length - 1];
+
+  //       // ✅ Populate OHLCV display on load
+  //       setTimeout(() => {
+  //         const last = data[data.length - 1];
+  //         if (last && ohlcvDisplayRef.current) {
+  //           const el = ohlcvDisplayRef.current;
+  //           const isUp = last.close >= last.open;
+  //           const color = isUp ? "#22c55e" : "#ef4444";
+  //           const o = el.querySelector("[data-o]");
+  //           const h = el.querySelector("[data-h]");
+  //           const l = el.querySelector("[data-l]");
+  //           const c = el.querySelector("[data-c]");
+  //           if (o) o.textContent = Number(last.open).toFixed(2);
+  //           if (h) h.textContent = Number(last.high).toFixed(2);
+  //           if (l) l.textContent = Number(last.low).toFixed(2);
+  //           if (c) c.textContent = Number(last.close).toFixed(2);
+  //           el.querySelectorAll("[data-val]").forEach(
+  //             (s) => (s.style.color = color),
+  //           );
+  //         }
+  //         chartRef.current?.timeScale().fitContent();
+  //       }, 150);
+  //     } catch (err) {
+  //       if (!isMounted) return;
+  //       console.error("Chart load error", err);
+  //     } finally {
+  //       if (isMounted) setMainChartLoading(false);
+  //     }
+  //   };
+
+  //   loadChart();
+
+  //   return () => {
+  //     isMounted = false;
+  //   };
+  // }, [chartType, timeframeValue, selectedCurrency, fromDate, toDate]);
+
+
   useEffect(() => {
-    if (!chartRef.current) return;
+  if (!selectedCurrency || !timeframeValue) return;
+  let isMounted = true;
 
-    let isMounted = true;
+  const socket = io("http://192.168.1.9:7000");
+  socketRef.current = socket;
 
-    const loadChart = async () => {
-      try {
-        setMainChartLoading(true);
+  const intervalSec = TIMEFRAME_TO_SECONDS[timeframeValue];
 
-        // remove previous series immediately to avoid showing old data
-        if (seriesRef.current) {
-          try {
-            chartRef.current.removeSeries(seriesRef.current);
-          } catch (e) {}
-          seriesRef.current = null;
-        }
+  socket.on("connect", () => {
+    console.log("✅ SOCKET CONNECTED");
 
-        const response = await fetchDataByCurrency(
-          selectedCurrency,
-          timeframeValue,
-          fromDate,
-          toDate,
+    // 🔥 Emit historical data request on connect
+    socket.emit("getManualHistoricalData", {
+      symbol: selectedCurrency?.symbol,
+      interval: timeframeValue,
+      fromDate: `${fromDate} 09:15`,
+      toDate: `${toDate} 15:30`,
+    });
+  });
+
+  // ✅ Historical data response — replaces loadChart / fetchDataByCurrency
+  socket.on("getManualHistoricalData", (response) => {
+    if (!isMounted || !chartRef.current) return;
+
+    console.log("HISTORICAL DATA RESPONSE", response);
+    setMainChartLoading(false);
+
+    // Remove previous series
+    if (seriesRef.current) {
+      try { chartRef.current.removeSeries(seriesRef.current); } catch {}
+      seriesRef.current = null;
+    }
+
+    const raw = response?.data?.[0]?.data || [];
+    // const raw = response?.data || [];
+    const data = raw.map((d) => ({
+      time: Number(d.time),
+      open: Number(d.open),
+      high: Number(d.high),
+      low: Number(d.low),
+      close: Number(d.close),
+      volume: Number(d.volume),
+    }));
+
+    if (!Array.isArray(data) || !data.length) return;
+
+    switch (chartType) {
+      case "line":
+        seriesRef.current = chartRef.current.addSeries(LineSeries, chartSeriesStyles.line);
+        seriesRef.current.setData(data.map((d) => ({ time: d.time, value: Number(d.close) })));
+        break;
+      case "bar":
+        seriesRef.current = chartRef.current.addSeries(BarSeries, chartSeriesStyles.bar);
+        seriesRef.current.setData(data.map((d) => ({ time: d.time, open: d.open, high: d.high, low: d.low, close: d.close })));
+        break;
+      case "area":
+        seriesRef.current = chartRef.current.addSeries(AreaSeries, chartSeriesStyles.area);
+        seriesRef.current.setData(data.map((d) => ({ time: d.time, value: Number(d.close) })));
+        break;
+      case "baseline":
+        seriesRef.current = chartRef.current.addSeries(BaselineSeries, {
+          ...chartSeriesStyles.baseline,
+          baseValue: { type: "price", price: Number(data[0]?.close ?? 0) },
+        });
+        seriesRef.current.setData(data.map((d) => ({ time: d.time, value: Number(d.close) })));
+        break;
+      case "histogram":
+        seriesRef.current = chartRef.current.addSeries(HistogramSeries, chartSeriesStyles.histogram);
+        seriesRef.current.setData(
+          data.map((d, index, arr) => {
+            const prev = arr[index - 1];
+            const isUp = prev ? d.close >= prev.close : true;
+            return { time: d.time, value: d.volume, color: isUp ? "#22c55e" : "#ef4444" };
+          })
         );
+        break;
+      case "heikinashi":
+        seriesRef.current = chartRef.current.addSeries(CandlestickSeries, chartSeriesStyles.candlestick);
+        seriesRef.current.setData(convertToHeikinAshi(data));
+        break;
+      case "hollowcandles":
+        seriesRef.current = chartRef.current.addSeries(CandlestickSeries, chartSeriesStyles.hollowcandles);
+        seriesRef.current.setData(data);
+        break;
+      default:
+        seriesRef.current = chartRef.current.addSeries(CandlestickSeries, chartSeriesStyles.candlestick);
+        seriesRef.current.setData(data);
+        seriesReadyRef.current = true;
+    }
 
-        if (!isMounted) return;
+    currentCandleRef.current = data[data.length - 1];
 
-        // Ensure we remove any series that might have been added concurrently
-        if (seriesRef.current) {
-          try {
-            chartRef.current.removeSeries(seriesRef.current);
-          } catch (e) {}
-          seriesRef.current = null;
-        }
-
-        // const data = response?.data || [];
-
-        const raw = response?.data || [];
-        const data = raw.map((d) => ({
-          time: Number(d.time), // use exactly as returned by API
-          open: Number(d.open),
-          high: Number(d.high),
-          low: Number(d.low),
-          close: Number(d.close),
-          volume: Number(d.volume),
-        }));
-
-        if (!Array.isArray(data) || !data.length) return;
-
-        switch (chartType) {
-          case "line":
-            seriesRef.current = chartRef.current.addSeries(
-              LineSeries,
-              chartSeriesStyles.line,
-            );
-
-            seriesRef.current.setData(
-              data.map((d) => ({
-                time: d.time,
-                value: Number(d.close),
-              })),
-            );
-            break;
-
-          case "bar":
-            seriesRef.current = chartRef.current.addSeries(
-              BarSeries,
-              chartSeriesStyles.bar,
-            );
-
-            seriesRef.current.setData(
-              data.map((d) => ({
-                time: d.time,
-                open: d.open,
-                high: d.high,
-                low: d.low,
-                close: d.close,
-              })),
-            );
-            break;
-
-          case "area":
-            seriesRef.current = chartRef.current.addSeries(
-              AreaSeries,
-              chartSeriesStyles.area,
-            );
-
-            seriesRef.current.setData(
-              data.map((d) => ({
-                time: d.time,
-                value: Number(d.close),
-              })),
-            );
-            break;
-
-          case "baseline":
-            seriesRef.current = chartRef.current.addSeries(BaselineSeries, {
-              ...chartSeriesStyles.baseline,
-              baseValue: {
-                type: "price",
-                price: Number(data[0]?.close ?? 0),
-              },
-            });
-
-            seriesRef.current.setData(
-              data.map((d) => ({
-                time: d.time,
-                value: Number(d.close),
-              })),
-            );
-            break;
-
-          case "histogram":
-            seriesRef.current = chartRef.current.addSeries(
-              HistogramSeries,
-              chartSeriesStyles.histogram,
-            );
-
-            seriesRef.current.setData(
-              data.map((d, index, arr) => {
-                const prev = arr[index - 1];
-                const isUp = prev ? d.close >= prev.close : true;
-
-                return {
-                  time: d.time,
-                  value: d.volume,
-                  color: isUp ? "#22c55e" : "#ef4444",
-                };
-              }),
-            );
-            break;
-
-          case "heikinashi":
-            seriesRef.current = chartRef.current.addSeries(
-              CandlestickSeries,
-              chartSeriesStyles.candlestick,
-            );
-
-            seriesRef.current.setData(convertToHeikinAshi(data));
-            break;
-
-          case "hollowcandles":
-            seriesRef.current = chartRef.current.addSeries(
-              CandlestickSeries,
-              chartSeriesStyles.hollowcandles,
-            );
-
-            seriesRef.current.setData(data);
-            break;
-
-          default:
-            seriesRef.current = chartRef.current.addSeries(
-              CandlestickSeries,
-              chartSeriesStyles.candlestick,
-            );
-
-            seriesRef.current.setData(data);
-            seriesReadyRef.current = true;
-        }
-        currentCandleRef.current = data[data.length - 1];
-
-        // ✅ Populate OHLCV display on load
-        setTimeout(() => {
-          const last = data[data.length - 1];
-          if (last && ohlcvDisplayRef.current) {
-            const el = ohlcvDisplayRef.current;
-            const isUp = last.close >= last.open;
-            const color = isUp ? "#22c55e" : "#ef4444";
-            const o = el.querySelector("[data-o]");
-            const h = el.querySelector("[data-h]");
-            const l = el.querySelector("[data-l]");
-            const c = el.querySelector("[data-c]");
-            if (o) o.textContent = Number(last.open).toFixed(2);
-            if (h) h.textContent = Number(last.high).toFixed(2);
-            if (l) l.textContent = Number(last.low).toFixed(2);
-            if (c) c.textContent = Number(last.close).toFixed(2);
-            el.querySelectorAll("[data-val]").forEach(
-              (s) => (s.style.color = color),
-            );
-          }
-          chartRef.current?.timeScale().fitContent();
-        }, 150);
-      } catch (err) {
-        if (!isMounted) return;
-        console.error("Chart load error", err);
-      } finally {
-        if (isMounted) setMainChartLoading(false);
+    // ✅ Populate OHLCV display on load
+    setTimeout(() => {
+      const last = data[data.length - 1];
+      if (last && ohlcvDisplayRef.current) {
+        const el = ohlcvDisplayRef.current;
+        const isUp = last.close >= last.open;
+        const color = isUp ? "#22c55e" : "#ef4444";
+        const o = el.querySelector("[data-o]");
+        const h = el.querySelector("[data-h]");
+        const l = el.querySelector("[data-l]");
+        const c = el.querySelector("[data-c]");
+        if (o) o.textContent = Number(last.open).toFixed(2);
+        if (h) h.textContent = Number(last.high).toFixed(2);
+        if (l) l.textContent = Number(last.low).toFixed(2);
+        if (c) c.textContent = Number(last.close).toFixed(2);
+        el.querySelectorAll("[data-val]").forEach((s) => (s.style.color = color));
       }
+      chartRef.current?.timeScale().fitContent();
+    }, 150);
+  });
+
+  socket.on("historicalDataError", (err) => {
+    console.error("❌ Historical data error:", err);
+    if (isMounted) setMainChartLoading(false);
+  });
+
+  socket.on("liveTick", (tick) => {
+    if (tick.symbol !== selectedCurrency?.symbol) return;
+    if (!seriesRef.current) return;
+
+    let timeInSec = tick.data.time;
+    if (typeof timeInSec === "string") {
+      timeInSec = Math.floor(new Date(timeInSec).getTime() / 1000);
+    } else if (typeof timeInSec === "number" && timeInSec > 1e12) {
+      timeInSec = Math.floor(timeInSec / 1000);
+    } else if (typeof timeInSec !== "number") {
+      return;
+    }
+
+    if (!Number.isFinite(timeInSec)) return;
+
+    const normalizedTime = Math.floor(timeInSec / intervalSec) * intervalSec;
+    if (!Number.isFinite(normalizedTime) || normalizedTime <= 0) return;
+
+    if (
+      currentCandleRef.current?.time &&
+      normalizedTime < currentCandleRef.current.time
+    ) return;
+
+    const candleData = {
+      time: normalizedTime,
+      open: Number(tick.data.open),
+      high: Number(tick.data.high),
+      low: Number(tick.data.low),
+      close: Number(tick.data.close),
+      volume: Number(tick.data.volume),
     };
 
-    loadChart();
+    currentCandleRef.current = candleData;
+    lastCandleTimeRef.current = normalizedTime;
 
-    return () => {
-      isMounted = false;
-    };
-  }, [chartType, timeframeValue, selectedCurrency, fromDate, toDate]);
+    try {
+      seriesRef.current.update(candleData);
+    } catch (e) {
+      console.warn("⚠️ series.update failed:", e.message);
+      return;
+    }
 
+    if (ohlcvDisplayRef.current) {
+      const el = ohlcvDisplayRef.current;
+      const isUp = candleData.close >= candleData.open;
+      const color = isUp ? "#22c55e" : "#ef4444";
+      const o = el.querySelector("[data-o]");
+      const h = el.querySelector("[data-h]");
+      const l = el.querySelector("[data-l]");
+      const c = el.querySelector("[data-c]");
+      if (o) o.textContent = Number(candleData.open).toFixed(2);
+      if (h) h.textContent = Number(candleData.high).toFixed(2);
+      if (l) l.textContent = Number(candleData.low).toFixed(2);
+      if (c) c.textContent = Number(candleData.close).toFixed(2);
+      el.querySelectorAll("[data-val]").forEach((s) => (s.style.color = color));
+    }
+
+    const activeIndicators = selectedIndicatorRef.current;
+    if (activeIndicators?.length > 0) {
+      activeIndicators.forEach((ind) => {
+        socket.emit("getLiveIndicatorUpdate", {
+          symbol: selectedCurrency?.symbol,
+          interval: timeframeValue,
+          token: selectedCurrency?.token, 
+          type: ind,
+          fromdate: `${fromDate} 09:15`,
+          todate: `${toDate} 15:30`,
+          latestCandle: candleData,
+        });
+      });
+    }
+  });
+
+  socket.on("liveIndicatorResponse", (payload) => {
+    if (!payload?.success || !payload?.type) return;
+    const indicatorType = payload.type;
+    const seriesGroup = indicatorSeriesRef.current?.[indicatorType];
+    if (!seriesGroup) return;
+    const dataArray = payload.data;
+    if (!Array.isArray(dataArray) || dataArray.length === 0) return;
+    const lastPoint = dataArray[dataArray.length - 1];
+    if (!lastPoint) return;
+    const pointTime = currentCandleRef.current?.time ?? Number(lastPoint.time);
+    Object.entries(seriesGroup).forEach(([lineName, series]) => {
+      if (lineName.startsWith("_")) return;
+      if (!series || typeof series.update !== "function") return;
+      const value =
+        lastPoint[lineName] ??
+        lastPoint.value ??
+        lastPoint[indicatorType.toLowerCase()];
+      if (value == null || !Number.isFinite(Number(value))) return;
+      try {
+        series.update({ time: pointTime, value: Number(value) });
+      } catch (e) {
+        console.warn(`⚠️ Indicator update failed [${indicatorType}][${lineName}]:`, e.message);
+      }
+    });
+  });
+
+  socket.on("disconnect", () => console.log("❌ SOCKET DISCONNECTED"));
+  socket.on("connect_error", (err) => console.log("❌ SOCKET ERROR:", err.message));
+
+  // 🔥 Show loader immediately while waiting for socket data
+  setMainChartLoading(true);
+
+  return () => {
+    isMounted = false;
+    console.log("🧹 SOCKET CLEANUP");
+    socket.off("historicalDataResponse");
+    socket.off("historicalDataError");
+    socket.off("liveTick");
+    socket.off("liveIndicatorResponse");
+    socket.disconnect();
+    socketRef.current = null;
+  };
+}, [selectedCurrency?.symbol, timeframeValue, chartType, fromDate, toDate]); // ✅ chartType added
   const zoomCharts = (delta) => {
     const charts = [
       chartRef.current,
@@ -892,159 +1127,161 @@ export default function Candlestick() {
     charts.forEach((chart) => chart.timeScale().fitContent());
   };
 
-  useEffect(() => {
-    if (!selectedCurrency || !timeframeValue) return;
+  // useEffect(() => {
+  //   if (!selectedCurrency || !timeframeValue) return;
 
-    const socket = io("http://192.168.1.9:7000");
-    socketRef.current = socket;
+  //   const socket = io("http://192.168.1.9:7000");
+  //   socketRef.current = socket;
 
-    const intervalSec = TIMEFRAME_TO_SECONDS[timeframeValue];
+  //   const intervalSec = TIMEFRAME_TO_SECONDS[timeframeValue];
 
-    socket.on("connect", () => {
-      console.log("✅ SOCKET CONNECTED");
-      socket.emit("getManualHistoricalData", {
-        symbol: selectedCurrency?.symbol,
-        interval: timeframeValue,
-      });
-    });
+  //   socket.on("connect", () => {
+  //     console.log("✅ SOCKET CONNECTED");
+  //     socket.emit("getManualHistoricalData", {
+  //       symbol: selectedCurrency?.symbol,
+  //       interval: timeframeValue,
+  //     });
+  //   });
 
-    socket.on("liveTick", (tick) => {
-      if (tick.symbol !== selectedCurrency?.name) return;
-      if (!seriesRef.current) return;
+  //   socket.on("liveTick", (tick) => {
+  //     if (tick.symbol !== selectedCurrency?.name) return;
+  //     if (!seriesRef.current) return;
 
-      let timeInSec = tick.data.time;
+  //     let timeInSec = tick.data.time;
 
-      if (typeof timeInSec === "string") {
-        timeInSec = Math.floor(new Date(timeInSec).getTime() / 1000);
-      } else if (typeof timeInSec === "number" && timeInSec > 1e12) {
-        timeInSec = Math.floor(timeInSec / 1000);
-      } else if (typeof timeInSec !== "number") {
-        return;
-      }
+  //     if (typeof timeInSec === "string") {
+  //       timeInSec = Math.floor(new Date(timeInSec).getTime() / 1000);
+  //     } else if (typeof timeInSec === "number" && timeInSec > 1e12) {
+  //       timeInSec = Math.floor(timeInSec / 1000);
+  //     } else if (typeof timeInSec !== "number") {
+  //       return;
+  //     }
 
-      if (!Number.isFinite(timeInSec)) return;
+  //     if (!Number.isFinite(timeInSec)) return;
 
-      // ✅ No IST offset — REST and socket are both in same timezone
-      const normalizedTime = Math.floor(timeInSec / intervalSec) * intervalSec;
-      if (!Number.isFinite(normalizedTime) || normalizedTime <= 0) return;
+  //     // ✅ No IST offset — REST and socket are both in same timezone
+  //     const normalizedTime = Math.floor(timeInSec / intervalSec) * intervalSec;
+  //     if (!Number.isFinite(normalizedTime) || normalizedTime <= 0) return;
 
-      // ✅ Skip if tick is older than current candle
-      if (
-        currentCandleRef.current?.time &&
-        normalizedTime < currentCandleRef.current.time
-      ) {
-        return;
-      }
+  //     // ✅ Skip if tick is older than current candle
+  //     if (
+  //       currentCandleRef.current?.time &&
+  //       normalizedTime < currentCandleRef.current.time
+  //     ) {
+  //       return;
+  //     }
 
-      const candleData = {
-        time: normalizedTime,
-        open: Number(tick.data.open),
-        high: Number(tick.data.high),
-        low: Number(tick.data.low),
-        close: Number(tick.data.close),
-        volume: Number(tick.data.volume),
-      };
+  //     const candleData = {
+  //       time: normalizedTime,
+  //       open: Number(tick.data.open),
+  //       high: Number(tick.data.high),
+  //       low: Number(tick.data.low),
+  //       close: Number(tick.data.close),
+  //       volume: Number(tick.data.volume),
+  //     };
 
-      currentCandleRef.current = candleData;
-      lastCandleTimeRef.current = normalizedTime;
+  //     currentCandleRef.current = candleData;
+  //     lastCandleTimeRef.current = normalizedTime;
 
-      try {
-        seriesRef.current.update(candleData);
-      } catch (e) {
-        console.warn("⚠️ series.update failed:", e.message);
-        return;
-      }
+  //     try {
+  //       seriesRef.current.update(candleData);
+  //     } catch (e) {
+  //       console.warn("⚠️ series.update failed:", e.message);
+  //       return;
+  //     }
 
-      // Direct DOM update — no React state, no flicker
-      if (ohlcvDisplayRef.current) {
-        const el = ohlcvDisplayRef.current;
-        const isUp = candleData.close >= candleData.open;
-        const color = isUp ? "#22c55e" : "#ef4444";
-        const o = el.querySelector("[data-o]");
-        const h = el.querySelector("[data-h]");
-        const l = el.querySelector("[data-l]");
-        const c = el.querySelector("[data-c]");
-        if (o) o.textContent = Number(candleData.open).toFixed(2);
-        if (h) h.textContent = Number(candleData.high).toFixed(2);
-        if (l) l.textContent = Number(candleData.low).toFixed(2);
-        if (c) c.textContent = Number(candleData.close).toFixed(2);
-        el.querySelectorAll("[data-val]").forEach(
-          (s) => (s.style.color = color),
-        );
-      }
+  //     // Direct DOM update — no React state, no flicker
+  //     if (ohlcvDisplayRef.current) {
+  //       const el = ohlcvDisplayRef.current;
+  //       const isUp = candleData.close >= candleData.open;
+  //       const color = isUp ? "#22c55e" : "#ef4444";
+  //       const o = el.querySelector("[data-o]");
+  //       const h = el.querySelector("[data-h]");
+  //       const l = el.querySelector("[data-l]");
+  //       const c = el.querySelector("[data-c]");
+  //       if (o) o.textContent = Number(candleData.open).toFixed(2);
+  //       if (h) h.textContent = Number(candleData.high).toFixed(2);
+  //       if (l) l.textContent = Number(candleData.low).toFixed(2);
+  //       if (c) c.textContent = Number(candleData.close).toFixed(2);
+  //       el.querySelectorAll("[data-val]").forEach(
+  //         (s) => (s.style.color = color),
+  //       );
+  //     }
 
-      // ✅ Emit live indicator update on every tick
-      const activeIndicators = selectedIndicatorRef.current;
-      if (activeIndicators?.length > 0) {
-        activeIndicators.forEach((ind) => {
-          socket.emit("getLiveIndicatorUpdate", {
-            symbol: selectedCurrency?.name,
-            interval: timeframeValue,
-            type: ind,
-            fromdate: `${fromDate} 09:15`,
-            todate: `${toDate} 15:30`,
-            latestCandle: candleData,
-          });
-        });
-      }
-    });
+  //     // ✅ Emit live indicator update on every tick
+  //     const activeIndicators = selectedIndicatorRef.current;
+  //     if (activeIndicators?.length > 0) {
+  //       activeIndicators.forEach((ind) => {
+  //         socket.emit("getLiveIndicatorUpdate", {
+  //           symbol: selectedCurrency?.name,
+  //           interval: timeframeValue,
+  //           type: ind,
+  //           fromdate: `${fromDate} 09:15`,
+  //           todate: `${toDate} 15:30`,
+  //           latestCandle: candleData,
+  //         });
+  //       });
+  //     }
+  //   });
 
-    // ✅ Live indicator response — update last point only
-    socket.on("liveIndicatorResponse", (payload) => {
-      if (!payload?.success || !payload?.type) return;
+  //   // ✅ Live indicator response — update last point only
+  //   socket.on("liveIndicatorResponse", (payload) => {
+  //     if (!payload?.success || !payload?.type) return;
 
-      const indicatorType = payload.type;
-      const seriesGroup = indicatorSeriesRef.current?.[indicatorType];
-      if (!seriesGroup) return;
+  //     const indicatorType = payload.type;
+  //     const seriesGroup = indicatorSeriesRef.current?.[indicatorType];
+  //     if (!seriesGroup) return;
 
-      const dataArray = payload.data;
-      if (!Array.isArray(dataArray) || dataArray.length === 0) return;
+  //     const dataArray = payload.data;
+  //     if (!Array.isArray(dataArray) || dataArray.length === 0) return;
 
-      const lastPoint = dataArray[dataArray.length - 1];
-      if (!lastPoint) return;
+  //     const lastPoint = dataArray[dataArray.length - 1];
+  //     if (!lastPoint) return;
 
-      // ✅ Use current candle time — guarantees alignment with chart
-      const pointTime =
-        currentCandleRef.current?.time ?? Number(lastPoint.time);
+  //     // ✅ Use current candle time — guarantees alignment with chart
+  //     const pointTime =
+  //       currentCandleRef.current?.time ?? Number(lastPoint.time);
 
-      Object.entries(seriesGroup).forEach(([lineName, series]) => {
-        if (lineName.startsWith("_")) return;
-        if (!series || typeof series.update !== "function") return;
+  //     Object.entries(seriesGroup).forEach(([lineName, series]) => {
+  //       if (lineName.startsWith("_")) return;
+  //       if (!series || typeof series.update !== "function") return;
 
-        const value =
-          lastPoint[lineName] ??
-          lastPoint.value ??
-          lastPoint[indicatorType.toLowerCase()];
+  //       const value =
+  //         lastPoint[lineName] ??
+  //         lastPoint.value ??
+  //         lastPoint[indicatorType.toLowerCase()];
 
-        if (value == null || !Number.isFinite(Number(value))) return;
+  //       if (value == null || !Number.isFinite(Number(value))) return;
 
-        try {
-          series.update({
-            time: pointTime, // ✅ always matches current candle
-            value: Number(value),
-          });
-        } catch (e) {
-          console.warn(
-            `⚠️ Indicator update failed [${indicatorType}][${lineName}]:`,
-            e.message,
-          );
-        }
-      });
-    });
+  //       try {
+  //         series.update({
+  //           time: pointTime, // ✅ always matches current candle
+  //           value: Number(value),
+  //         });
+  //       } catch (e) {
+  //         console.warn(
+  //           `⚠️ Indicator update failed [${indicatorType}][${lineName}]:`,
+  //           e.message,
+  //         );
+  //       }
+  //     });
+  //   });
 
-    socket.on("disconnect", () => console.log("❌ SOCKET DISCONNECTED"));
-    socket.on("connect_error", (err) =>
-      console.log("❌ SOCKET ERROR:", err.message),
-    );
+  //   socket.on("disconnect", () => console.log("❌ SOCKET DISCONNECTED"));
+  //   socket.on("connect_error", (err) =>
+  //     console.log("❌ SOCKET ERROR:", err.message),
+  //   );
 
-    return () => {
-      console.log("🧹 SOCKET CLEANUP");
-      socket.off("liveTick");
-      socket.off("liveIndicatorResponse");
-      socket.disconnect();
-      socketRef.current = null;
-    };
-  }, [selectedCurrency?.name, timeframeValue]); // ✅ single dependency array
+  //   return () => {
+  //     console.log("🧹 SOCKET CLEANUP");
+  //     socket.off("liveTick");
+  //     socket.off("liveIndicatorResponse");
+  //     socket.disconnect();
+  //     socketRef.current = null;
+  //   };
+  // }, [selectedCurrency?.name, timeframeValue]); // ✅ single dependency array
+
+
   return (
     <>
       <Navbar setSelectedCurrency={setSelectedCurrency} />

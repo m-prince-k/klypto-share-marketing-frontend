@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { IoCloseSharp } from "react-icons/io5";
 import { FiSearch } from "react-icons/fi";
-import { GrBitcoin } from "react-icons/gr";
-import { Link } from "react-router-dom";
 import { Form, InputGroup, ListGroup } from "react-bootstrap";
 import { Spinner } from "./Spinner";
 import apiService from "../../services/apiServices";
@@ -10,6 +8,7 @@ import { useDebounce } from "../../util/common";
 import { getStockLogo } from "../../util/stockSymbol/helper";
 import NSE from "../../assets/NSE.svg";
 import BSE from "../../assets/BSE.svg";
+import { io } from "socket.io-client";
 
 export const ListingModal = ({
   isOpen,
@@ -26,73 +25,56 @@ export const ListingModal = ({
   const [indicators, setIndicators] = useState([]);
   const [currencies, setCurrencies] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [equityLoading, setEquityLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchIndicator, setSearchIndicator] = useState("");
   const [searchCurrency, setSearchCurrency] = useState("");
-
   const TABS = ["ALL", "EQUITY", "FUTURES", "OPTIONS"];
   const [activeTab, setActiveTab] = useState("ALL");
   const [equity, setEquity] = useState([]);
   const [futures, setFutures] = useState([]);
   const [options, setOptions] = useState([]);
-
   const [rsiValue, setRsiValue] = useState("");
   const [alertLoading, setAlertLoading] = useState(false);
   const [alertError, setAlertError] = useState(null);
   const intervalRef = useRef(null);
 
-const handleSubmitAlert = () => {
-  if (!rsiValue) return;
+  // ─── Alert Handler ───────────────────────────────────────────────────────────
+  const handleSubmitAlert = () => {
+    if (!rsiValue) return;
+    setAlertLoading(true);
+    setAlertError(null);
+    setAlertResult(null);
+    if (intervalRef.current) clearInterval(intervalRef.current);
 
-  setAlertLoading(true);
-  setAlertError(null);
-  setAlertResult(null);
+    const fetchRSI = async () => {
+      try {
+        const res = await apiService.post(
+          `equity/rsi-scanner?interval=1d&fromDate=2026-04-01&toDate=2026-05-06`,
+          { rsi_threshold: Number(rsiValue) }
+        );
+        setAlertResult(res?.data || res);
+      } catch (err) {
+        console.error(err);
+        setAlertError("Failed to fetch RSI data");
+      } finally {
+        setAlertLoading(false);
+      }
+    };
 
-  // clear old interval if any
-  if (intervalRef.current) {
-    clearInterval(intervalRef.current);
-  }
-
-  const fetchRSI = async () => {
-    try {
-      const res = await apiService.post(
-        `equity/rsi-scanner?interval=1d&fromDate=2026-04-01&toDate=2026-05-06`,
-        {
-          rsi_threshold: Number(rsiValue),
-        }
-      );
-
-      const data = res?.data || res;
-
-      // ✅ just update data (NO STOP, NO CLOSE)
-      setAlertResult(data);
-
-    } catch (err) {
-      console.error(err);
-      setAlertError("Failed to fetch RSI data");
-    } finally {
-      setAlertLoading(false); // only first time matters
-    }
+    fetchRSI();
+    intervalRef.current = setInterval(fetchRSI, 200000);
   };
 
-  // 🔥 first instant call
-  fetchRSI();
-
-  // 🔁 keep hitting every 2 sec
-  intervalRef.current = setInterval(fetchRSI, 200000);
-};
   const debouncedIndicator = useDebounce(searchIndicator, 500);
 
-  // 🔥 Fetch Indicators
+  // ─── Fetch Indicators ────────────────────────────────────────────────────────
   async function fetchIndicators() {
     setLoading(true);
     setError(null);
-
     try {
       const response = await apiService.post(`/equity/getIndicators`);
-
       console.log("indicator API response:", response);
-
       setIndicators(response?.data || []);
     } catch (err) {
       console.error(err);
@@ -102,25 +84,45 @@ const handleSubmitAlert = () => {
     }
   }
 
-  // 🔥 Fetch Stocks (Currencies replaced)
-  async function fetchCurrencies() {
-    setLoading(true);
-    setError(null);
+  // ─── Socket: Fetch Stocks (Equity) ──────────────────────────────────────────
+  useEffect(() => {
+    if (!isOpen || title !== "Symbol Search") return;
 
-    try {
-      const response = await apiService.get(`equity/stocks`);
-      console.log("stocks API response:", response);
+    setEquityLoading(true);
 
-      setCurrencies(response?.stocks || []);
-      setEquity(response?.stocks || []);
-    } catch (err) {
-      setError(err.message);
-    } finally {
+    const socket = io("http://192.168.1.9:7000");
+
+    socket.on("connect", () => {
+      console.log("Socket connected, emitting getAllStocks");
+      socket.emit("getAllStocks");
+    });
+
+    socket.on("stocks", (response) => {
+      console.log("stocks socket response:", response);
+      const stocks = response?.stocks || [];
+      console.log("Total stocks received:", stocks.length);
+      setCurrencies(stocks);
+      setEquity(stocks);       // ✅ bind to equity state
+      setEquityLoading(false);
       setLoading(false);
-    }
-  }
+    });
 
-  // 🔥 Fetch Futures
+    socket.on("connect_error", (err) => {
+      console.error("Socket connect error:", err.message);
+      setError(err.message);
+      setEquityLoading(false);
+      setLoading(false);
+    });
+
+    return () => {
+      socket.off("connect");
+      socket.off("stocks");
+      socket.off("connect_error");
+      socket.disconnect();
+    };
+  }, [isOpen, title]);
+
+  // ─── Fetch Futures ───────────────────────────────────────────────────────────
   async function fetchFutures() {
     try {
       setLoading(true);
@@ -134,7 +136,7 @@ const handleSubmitAlert = () => {
     }
   }
 
-  // 🔥 Fetch Options
+  // ─── Fetch Options ───────────────────────────────────────────────────────────
   async function fetchOptions() {
     try {
       setLoading(true);
@@ -148,112 +150,39 @@ const handleSubmitAlert = () => {
     }
   }
 
+  // ─── Tab-based Fetching ──────────────────────────────────────────────────────
   useEffect(() => {
     if (title === "Indicators") {
       fetchIndicators();
       return;
     }
-
     if (title === "Symbol Search") {
       if (activeTab === "ALL") {
-        if (equity.length === 0) fetchCurrencies();
         if (futures.length === 0) fetchFutures();
         if (options.length === 0) fetchOptions();
       }
-      if (activeTab === "EQUITY" && equity.length === 0) {
-        fetchCurrencies();
-      }
-
-      if (activeTab === "FUTURES" && futures.length === 0) {
-        fetchFutures();
-      }
-
-      if (activeTab === "OPTIONS" && options.length === 0) {
-        fetchOptions();
-      }
+      if (activeTab === "FUTURES" && futures.length === 0) fetchFutures();
+      if (activeTab === "OPTIONS" && options.length === 0) fetchOptions();
     }
   }, [title, activeTab]);
 
-  // 🔍 Indicator Filter
-  const filteredIndicators = (indicators ?? []).filter((item) => {
-    if (!searchIndicator) return true;
-
-    const search = searchIndicator.toLowerCase().trim();
-
-    const label = item?.label?.toLowerCase() || "";
-    const slug = item?.slug?.toLowerCase() || "";
-
-    // 🔥 initials support (RSI -> "rsi", Moving Average -> "ma")
-    const getInitials = (text) =>
-      text
-        .split(" ")
-        .map((w) => w[0])
-        .join("")
-        .toLowerCase();
-
-    return (
-      label.includes(search) ||
-      slug.includes(search) ||
-      getInitials(label).includes(search)
-    );
-  });
-
-  // 🔍 Stock Filter
-  const filteredCurrencies = currencies
-    ?.filter((curr) => {
-      if (!searchCurrency) return true;
-      const search = searchCurrency.toLowerCase().trim();
-
-      const name = curr?.name?.toLowerCase() || "";
-      const symbol = curr?.actualSymbol?.toLowerCase() || "";
-      const code = curr?.userCode?.toLowerCase() || "";
-
-      return (
-        name.includes(search) ||
-        symbol.includes(search) ||
-        code.includes(search)
-      );
-    })
-    .sort((a, b) => {
-      if (!searchCurrency) return 0;
-      const search = searchCurrency.toLowerCase().trim();
-
-      const getScore = (item) => {
-        const name = item?.name?.toLowerCase() || "";
-        const symbol = item?.actualSymbol?.toLowerCase() || "";
-        const code = item?.userCode?.toLowerCase() || "";
-
-        if (name === search || symbol === search || code === search) return 3;
-        if (
-          name.startsWith(search) ||
-          symbol.startsWith(search) ||
-          code.startsWith(search)
-        )
-          return 2;
-        return 1;
-      };
-
-      return getScore(b) - getScore(a);
-    });
-
-  // 🔥 Normalize + Merge
+  // ─── Normalize ───────────────────────────────────────────────────────────────
   const normalize = (item, type) => {
     if (type === "FUTURES") {
       return {
         name: item?.name,
-        symbol: item?.symbol, // ✅ correct field
+        symbol: item?.symbol,
         token: item?.token,
         segment: item?.segment,
         userCode: item?.userCode,
         type,
-        expiry: item?.expiry, // optional but useful
+        expiry: item?.expiry,
       };
     }
-
-    // EQUITY / OPTIONS
+    // ✅ EQUITY & OPTIONS: use actualSymbol, fallback to symbol if missing
     return {
       name: item?.name,
-      symbol: item?.actualSymbol, // ✅ equity uses this
+      symbol: item?.actualSymbol || item?.symbol,
       token: item?.token,
       segment: item?.segment,
       userCode: item?.userCode,
@@ -267,23 +196,21 @@ const handleSubmitAlert = () => {
     ...options.map((o) => normalize(o, "OPTIONS")),
   ];
 
-  // 🔥 Active List
+  // ─── Active List by Tab ──────────────────────────────────────────────────────
   const getActiveList = () => {
-    if (activeTab === "EQUITY")
+    if (activeTab === "EQUITY") {
+      console.log("EQUITY tab — equity.length:", equity.length); // debug
       return equity.map((e) => normalize(e, "EQUITY"));
-    if (activeTab === "FUTURES")
-      return futures.map((f) => normalize(f, "FUTURES"));
-    if (activeTab === "OPTIONS")
-      return options.map((o) => normalize(o, "OPTIONS"));
+    }
+    if (activeTab === "FUTURES") return futures.map((f) => normalize(f, "FUTURES"));
+    if (activeTab === "OPTIONS") return options.map((o) => normalize(o, "OPTIONS"));
     return mergedList;
   };
 
-  // 🔍 Unified Filter
+  // ─── Unified Search Filter ───────────────────────────────────────────────────
   const filteredList = getActiveList()?.filter((item) => {
     if (!searchCurrency) return true;
-
     const search = searchCurrency.toLowerCase();
-
     return (
       item?.name?.toLowerCase().includes(search) ||
       item?.symbol?.toLowerCase().includes(search) ||
@@ -292,11 +219,42 @@ const handleSubmitAlert = () => {
     );
   });
 
+  // ─── Indicator Filter ────────────────────────────────────────────────────────
+  const filteredIndicators = (indicators ?? []).filter((item) => {
+    if (!searchIndicator) return true;
+    const search = searchIndicator.toLowerCase().trim();
+    const label = item?.label?.toLowerCase() || "";
+    const slug = item?.slug?.toLowerCase() || "";
+    const getInitials = (text) =>
+      text
+        .split(" ")
+        .map((w) => w[0])
+        .join("")
+        .toLowerCase();
+    return (
+      label.includes(search) ||
+      slug.includes(search) ||
+      getInitials(label).includes(search)
+    );
+  });
+
+  // ─── Per-tab Loading Guard ───────────────────────────────────────────────────
+  // ✅ Only show spinner if loading flag is true AND no data yet
+  // Prevents getting stuck in loading state if flag never resets
+  const isTabLoading = () => {
+    if (activeTab === "EQUITY")  return equityLoading && equity.length === 0;
+    if (activeTab === "FUTURES") return loading && futures.length === 0;
+    if (activeTab === "OPTIONS") return loading && options.length === 0;
+    // ALL tab: show spinner only while equity has no data yet
+    return equityLoading && equity.length === 0;
+  };
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-99 flex items-center justify-center bg-black/60">
       <div className="w-full px-5 py-4 max-w-3xl h-[90vh] rounded-md bg-white border border-slate-700 shadow-lg">
+
         {/* Header */}
         <div className="flex items-center justify-between">
           <h2 className="text-xl text-black">{title}</h2>
@@ -307,10 +265,11 @@ const handleSubmitAlert = () => {
           />
         </div>
 
-        {/* ================= SYMBOL SEARCH ================= */}
+        {/* ═══════════════ SYMBOL SEARCH ═══════════════ */}
         {title === "Symbol Search" && (
           <div className="py-3">
-            {/* 🔥 Tabs */}
+
+            {/* Tabs */}
             <div
               style={{
                 display: "inline-flex",
@@ -358,7 +317,7 @@ const handleSubmitAlert = () => {
               ))}
             </div>
 
-            {/* Search */}
+            {/* Search Input */}
             <InputGroup className="mb-3">
               <InputGroup.Text>
                 <FiSearch />
@@ -372,71 +331,67 @@ const handleSubmitAlert = () => {
               />
             </InputGroup>
 
-            {/* List */}
+            {/* Stock List */}
             <div style={{ maxHeight: "60vh", overflowY: "auto" }}>
-              {loading ? (
+              {isTabLoading() ? (
                 <Spinner />
               ) : filteredList?.length > 0 ? (
                 <ListGroup variant="flush">
-                  {filteredList.map((item, index) => {
-                    // const logo = getStockLogo(item?.userCode);
-                    return (
-                      <ListGroup.Item
-                        key={`${item.symbol}-${index}`}
-                        action
-                        onClick={() => {
-                          setSelectedCurrency({
-                            symbol: item.symbol,
-                            name: item.name,
-                            token: item.token,
-                            segment: item.segment,
-                            type: item.type,
-                            userCode: item.userCode,
-                          });
-                          onClose();
-                        }}
-                        className="d-flex justify-content-between align-items-center"
-                        style={{ cursor: "pointer" }}
-                      >
-                        <div className="d-flex align-items-center gap-2">
-                          <img
-                            src={getStockLogo(item?.userCode)}
-                            width={24}
-                            height={24}
-                            style={{ borderRadius: "50%" }}
-                            onError={(e) => {
-                              e.target.onerror = null;
-                            }}
-                          />
-                          <div className="text-uppercase fw-medium small">
-                            {item?.name} ({item?.symbol})
-                            {item?.type === "FUTURES" && (
-                              <span
-                                style={{
-                                  fontSize: "11px",
-                                  color: "#888",
-                                  marginLeft: 6,
-                                }}
-                              >
-                                {item.expiry}
-                              </span>
-                            )}
-                          </div>
+                  {filteredList.map((item, index) => (
+                    <ListGroup.Item
+                      key={`${item.symbol}-${index}`}
+                      action
+                      onClick={() => {
+                        setSelectedCurrency({
+                          symbol: item.symbol,
+                          name: item.name,
+                          token: item.token,
+                          segment: item.segment,
+                          type: item.type,
+                          userCode: item.userCode,
+                        });
+                        onClose();
+                      }}
+                      className="d-flex justify-content-between align-items-center"
+                      style={{ cursor: "pointer" }}
+                    >
+                      <div className="d-flex align-items-center gap-2">
+                        <img
+                          src={getStockLogo(item?.userCode)}
+                          width={24}
+                          height={24}
+                          style={{ borderRadius: "50%" }}
+                          onError={(e) => {
+                            e.target.onerror = null;
+                          }}
+                        />
+                        <div className="text-uppercase fw-medium small">
+                          {item?.name} ({item?.symbol})
+                          {item?.type === "FUTURES" && (
+                            <span
+                              style={{
+                                fontSize: "11px",
+                                color: "#888",
+                                marginLeft: 6,
+                              }}
+                            >
+                              {item.expiry}
+                            </span>
+                          )}
                         </div>
-
-                        <div className="text-end d-flex gap-2 align-items-center">
-                          <small className="text-muted">{item.segment}</small>
-                          <img
-                            src={
-                              item.segment?.toLowerCase() === "nse" ? NSE : BSE
-                            }
-                            className="rounded-full"
-                            alt={item.segment}
-                          />
-                        </div>
-                      </ListGroup.Item>
-                    );
-                  })}
+                      </div>
+                      <div className="text-end d-flex gap-2 align-items-center">
+                        <small className="text-muted">{item.segment}</small>
+                        <img
+                          src={
+                            item.segment?.toLowerCase() === "nse" ? NSE : BSE
+                          }
+                          className="rounded-full"
+                          alt={item.segment}
+                        />
+                      </div>
+                    </ListGroup.Item>
+                  ))}
                 </ListGroup>
               ) : (
                 <p className="text-center text-dark py-3">No Data found</p>
@@ -445,10 +400,9 @@ const handleSubmitAlert = () => {
           </div>
         )}
 
-        {/* ================= INDICATORS ================= */}
+        {/* ═══════════════ INDICATORS ═══════════════ */}
         {title === "Indicators" && (
           <div className="mt-3" style={{ maxHeight: "70vh" }}>
-            {/* Search */}
             <InputGroup className="mb-3">
               <InputGroup.Text>
                 <FiSearch />
@@ -461,8 +415,6 @@ const handleSubmitAlert = () => {
                 onChange={(e) => setSearchIndicator(e.target.value)}
               />
             </InputGroup>
-
-            {/* List */}
             <div style={{ maxHeight: "60vh", overflowY: "auto" }}>
               {loading ? (
                 <Spinner />
@@ -486,11 +438,10 @@ const handleSubmitAlert = () => {
           </div>
         )}
 
-        {/* ================= ALERT ================= */}
+        {/* ═══════════════ ALERTS ═══════════════ */}
         {title === "Alerts" && (
           <div className="mt-3" style={{ color: "black" }}>
             <h5>Create RSI Alert</h5>
-
             <InputGroup className="mb-3">
               <Form.Control
                 type="number"
@@ -499,7 +450,6 @@ const handleSubmitAlert = () => {
                 onChange={(e) => setRsiValue(e.target.value)}
               />
             </InputGroup>
-
             <button
               className="btn btn-primary w-100"
               onClick={handleSubmitAlert}
@@ -507,8 +457,6 @@ const handleSubmitAlert = () => {
             >
               {alertLoading ? "Scanning..." : "Submit"}
             </button>
-
-            {/* Result */}
             <div
               className="mt-3"
               style={{ maxHeight: "290px", overflowY: "auto" }}
@@ -516,7 +464,6 @@ const handleSubmitAlert = () => {
               {alertError && (
                 <div className="text-danger small">{alertError}</div>
               )}
-
               {alertResult && (
                 <pre style={{ fontSize: "12px" }}>
                   {JSON.stringify(alertResult, null, 2)}
@@ -525,6 +472,7 @@ const handleSubmitAlert = () => {
             </div>
           </div>
         )}
+
       </div>
     </div>
   );
