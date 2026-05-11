@@ -37,51 +37,54 @@ export const ListingModal = ({
   const [futures, setFutures] = useState([]);
   const [options, setOptions] = useState([]);
 
-  const [rsiValue, setRsiValue] = useState("");
+  const [rsiValue, setRsiValue] = useState({
+    condition: "crossesAbove",
+    value: "",
+  });
   const [alertLoading, setAlertLoading] = useState(false);
   const [alertError, setAlertError] = useState(null);
   const intervalRef = useRef(null);
 
-const handleSubmitAlert = () => {
-  if (!rsiValue) return;
+  const handleSubmitAlert = () => {
+    if (!rsiValue.value) return;
 
-  setAlertLoading(true);
-  setAlertError(null);
-  setAlertResult(null);
+    setAlertLoading(true);
+    setAlertError(null);
+    setAlertResult(null);
 
-  // clear old interval if any
-  if (intervalRef.current) {
-    clearInterval(intervalRef.current);
-  }
-
-  const fetchRSI = async () => {
-    try {
-      const res = await apiService.post(
-        `equity/rsi-scanner?interval=1d&fromDate=2026-04-01&toDate=2026-05-06`,
-        {
-          rsi_threshold: Number(rsiValue),
-        }
-      );
-
-      const data = res?.data || res;
-
-      // ✅ just update data (NO STOP, NO CLOSE)
-      setAlertResult(data);
-
-    } catch (err) {
-      console.error(err);
-      setAlertError("Failed to fetch RSI data");
-    } finally {
-      setAlertLoading(false); // only first time matters
+    // clear old interval if any
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
     }
+
+    const fetchRSI = async () => {
+      try {
+        const res = await apiService.post(
+          `equity/rsi-scanner?interval=1d&fromDate=2026-04-01&toDate=2026-05-06`,
+          {
+            rsi_threshold: Number(rsiValue.value),
+            condition: rsiValue.condition, // Sending condition to backend
+          }
+        );
+
+        const data = res?.data || res;
+
+        // ✅ just update data (NO STOP, NO CLOSE)
+        setAlertResult(data);
+      } catch (err) {
+        console.error(err);
+        setAlertError("Failed to fetch RSI data");
+      } finally {
+        setAlertLoading(false); // only first time matters
+      }
+    };
+
+    // 🔥 first instant call
+    fetchRSI();
+
+    // 🔁 keep hitting every 2 sec
+    intervalRef.current = setInterval(fetchRSI, 200000);
   };
-
-  // 🔥 first instant call
-  fetchRSI();
-
-  // 🔁 keep hitting every 2 sec
-  intervalRef.current = setInterval(fetchRSI, 200000);
-};
   const debouncedIndicator = useDebounce(searchIndicator, 500);
 
   // 🔥 Fetch Indicators
@@ -504,24 +507,50 @@ const handleSubmitAlert = () => {
           <div className="mt-3" style={{ color: "black" }}>
             <h5>Create RSI Alert</h5>
 
+            {/* Condition Dropdown */}
+            <label className="small mb-1">Condition</label>
+            <Form.Select
+              className="mb-3"
+              value={rsiValue.condition}
+              onChange={(e) =>
+                setRsiValue({
+                  ...rsiValue,
+                  condition: e.target.value,
+                })
+              }
+            >
+              <option value="crossesAbove">Crosses Above</option>
+              <option value="crossesBelow">Crosses Below</option>
+              <option value="greaterThan">Greater Than</option>
+              <option value="lessThan">Less Than</option>
+            </Form.Select>
+
+            {/* RSI Value Input */}
+            <label className="small mb-1">RSI Value</label>
             <InputGroup className="mb-3">
               <Form.Control
                 type="number"
-                placeholder="Enter RSI Threshold (e.g. 70)"
-                value={rsiValue}
-                onChange={(e) => setRsiValue(e.target.value)}
+                placeholder="Enter RSI Value (e.g. 70)"
+                value={rsiValue.value}
+                onChange={(e) =>
+                  setRsiValue({
+                    ...rsiValue,
+                    value: e.target.value,
+                  })
+                }
               />
             </InputGroup>
 
+            {/* SUBMIT BUTTON */}
             <button
               className="btn btn-primary w-100"
               onClick={handleSubmitAlert}
               disabled={alertLoading}
             >
-              {alertLoading ? "Scanning..." : "Submit"}
+              {alertLoading ? "Scanning..." : "Start Scanner"}
             </button>
 
-            {/* Result */}
+            {/* RESULT SECTION */}
             <div
               className="mt-3"
               style={{ maxHeight: "290px", overflowY: "auto" }}

@@ -19,6 +19,7 @@ import Navbar from "../components/layout/Navbar";
 import LeftWatchlist from "../components/layout/LeftWatchlist";
 import RightSidebar from "../components/layout/RightSidebar";
 import ChartTabs from "../components/layout/ChartTabs";
+import socket from "../services/socket";
 
 // import SEO from "../components/SEO";
 import {
@@ -673,16 +674,16 @@ export default function Candlestick() {
     return () => chart.unsubscribeCrosshairMove(handler);
   }, []);
 
- const { fetchIndicatorData } = useChartFunctions({
-  indicatorSeriesRef,
-  indicatorDataRef,
-  latestIndicatorValuesRef,
-  indicatorConfigs,
-  fromDate,
-  toDate,
-  socket: socketRef.current,
-  candlesRef, // ✅ ADD THIS
-});
+  const { fetchIndicatorData } = useChartFunctions({
+    indicatorSeriesRef,
+    indicatorDataRef,
+    latestIndicatorValuesRef,
+    indicatorConfigs,
+    fromDate,
+    toDate,
+    socketRef,
+    candlesRef,
+  });
 
   // ATTACH MAIN CHART
 
@@ -701,15 +702,15 @@ export default function Candlestick() {
   useEffect(() => {
     if (!selectedCurrency || !timeframeValue) return;
     let isMounted = true;
+    console.log("Socket object:", socket);
+    console.log("Connected:", socket.connected);
+    console.log("Socket ID:", socket.id);
 
-    const socket = io("http://192.168.1.9:7000");
     socketRef.current = socket;
 
     const intervalSec = TIMEFRAME_TO_SECONDS[timeframeValue];
 
-    socket.on("connect", () => {
-      console.log("✅ SOCKET CONNECTED");
-
+    const requestHistoricalData = () => {
       // 🔥 Match Chart.jsx emit style
       socket.emit("getManualHistoricalData", {
         symbol: selectedCurrency?.name,
@@ -727,6 +728,17 @@ export default function Candlestick() {
         toDate: new Date().toISOString(), // Use current time for toDate like Chart.jsx
         exchange: selectedCurrency?.segment || "NSE",
       });
+    };
+
+    if (socket.connected) {
+      requestHistoricalData();
+    } else {
+      socket.connect();
+    }
+
+    socket.on("connect", () => {
+      console.log("✅ SOCKET CONNECTED", socket);
+      requestHistoricalData();
     });
 
     // ✅ Historical data response — replaces loadChart / fetchDataByCurrency
@@ -1009,23 +1021,23 @@ export default function Candlestick() {
       if (activeIndicators?.length > 0) {
         activeIndicators.forEach((ind) => {
           socket.emit("getLiveIndicatorUpdate", {
-  symbol: selectedCurrency?.name,
-  interval:
-    TIMEFRAME_TO_SECONDS[timeframeValue] === 86400
-      ? "ONE_DAY"
-      : TIMEFRAME_TO_SECONDS[timeframeValue] === 3600
-        ? "ONE_HOUR"
-        : TIMEFRAME_TO_SECONDS[timeframeValue] === 900
-          ? "FIFTEEN_MINUTE"
-          : TIMEFRAME_TO_SECONDS[timeframeValue] === 300
-            ? "FIVE_MINUTE"
-            : "ONE_MINUTE",
+            symbol: selectedCurrency?.name,
+            interval:
+              TIMEFRAME_TO_SECONDS[timeframeValue] === 86400
+                ? "ONE_DAY"
+                : TIMEFRAME_TO_SECONDS[timeframeValue] === 3600
+                  ? "ONE_HOUR"
+                  : TIMEFRAME_TO_SECONDS[timeframeValue] === 900
+                    ? "FIFTEEN_MINUTE"
+                    : TIMEFRAME_TO_SECONDS[timeframeValue] === 300
+                      ? "FIVE_MINUTE"
+                      : "ONE_MINUTE",
 
-  token: selectedCurrency?.token,
-  type: ind,
+            token: selectedCurrency?.token,
+            type: ind,
 
-  candles: candlesRef.current, // ✅ FULL SOURCE OF TRUTH
-});
+            candles: candlesRef.current, // ✅ FULL SOURCE OF TRUTH
+          });
         });
       }
     });
@@ -1070,11 +1082,14 @@ export default function Candlestick() {
     return () => {
       isMounted = false;
       console.log("🧹 SOCKET CLEANUP");
+      socket.off("connect");
       socket.off("historicalDataResponse");
       socket.off("historicalDataError");
       socket.off("liveTick");
       socket.off("liveIndicatorResponse");
-      socket.disconnect();
+      socket.off("disconnect");
+      socket.off("connect_error");
+      // Do NOT disconnect the global socket instance here
       socketRef.current = null;
     };
   }, [selectedCurrency?.name, timeframeValue, chartType, fromDate, toDate]); // ✅ chartType added

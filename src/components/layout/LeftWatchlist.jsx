@@ -1,15 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { FiSearch, FiSettings, FiX, FiPlus, FiMaximize2 } from "react-icons/fi";
-import { BsArrowUp, BsArrowDown } from "react-icons/bs";
-import apiService from "../../services/apiServices";
-import { io } from "socket.io-client";
+import socket from "../../services/socket";
 
 const LeftWatchlist = ({ onClose, setSelectedCurrency, alertResult }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [stocksData, setStocksData] = useState([]);
 
 useEffect(() => {
-  const socket = io("http://192.168.1.9:7000");
 
   socket.emit("getAllStocks");
 

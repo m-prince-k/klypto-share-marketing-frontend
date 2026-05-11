@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { CandlestickSeries, createChart, LineSeries } from 'lightweight-charts';
-import io from 'socket.io-client';
 import { Modal, Button } from 'react-bootstrap';
+import socket from '../services/socket';
 
 const GoldChart = () => {
     const chartContainerRef = useRef();
@@ -73,7 +73,7 @@ const GoldChart = () => {
             wickUpColor: '#10b981',
         });
 
-        const socket = io("http://192.168.1.9:7000");
+        
         socketRef.current = socket;
 
         socket.on("connect", () => {

@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
-import apiService from "../../services/apiServices";
 import { Spinner } from "./Spinner";
-import { io } from "socket.io-client";
+import socket from "../../services/socket";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const fmt = (v, digits = 2) =>
@@ -601,8 +600,6 @@ const Overview = ({ selectedCurrency }) => {
 
     setLoading(true);
 
-    const socket = io("http://192.168.1.9:7000");
-
     socket.emit("getAllStocks");
 
     /*
@@ -673,7 +670,6 @@ const Overview = ({ selectedCurrency }) => {
       socket.off("stocks");
       socket.off("stockUpdate");
       socket.off("liveTick");
-      socket.disconnect();
     };
   }, [selectedCurrency]);
 
