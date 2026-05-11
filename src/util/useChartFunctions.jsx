@@ -165,8 +165,8 @@ export default function useChartFunctions({
       case "RSI": {
         const rsiData = result?.data?.rsi ?? [];
         const smoothingData = result?.data?.smoothingMA ?? [];
-        const bbUpperData = result?.data?.bbUpperBand ?? [];
-        const bbLowerData = result?.data?.bbLowerBand ?? [];
+        const bbUpperData = result?.data?.bbUpper ?? [];
+        const bbLowerData = result?.data?.bbLower ?? [];
 
         indicatorDataRef.current.RSI = {
           result,
@@ -176,11 +176,11 @@ export default function useChartFunctions({
         latestIndicatorValuesRef.current.RSI = {
           rsi: rsiData[rsiData.length - 1]?.value,
           smoothingMA: smoothingData[smoothingData.length - 1]?.value,
-          bbUpperBand:
+          bbUpper:
             bbUpperData.length > 0
               ? bbUpperData[bbUpperData.length - 1]?.value
               : null,
-          bbLowerBand:
+          bbLower:
             bbLowerData.length > 0
               ? bbLowerData[bbLowerData.length - 1]?.value
               : null,
@@ -1855,7 +1855,7 @@ async function fetchDataForIndicators(
                   value: d.smoothingMA,
                 })) ?? [],
 
-            bbUpperBand:
+            bbUpper:
               response.data
                 ?.filter((d) => d.bbUpperBand != null && d.time != null)
                 .map((d) => ({
@@ -1863,7 +1863,7 @@ async function fetchDataForIndicators(
                   value: d.bbUpperBand,
                 })) ?? [],
 
-            bbLowerBand:
+            bbLower:
               response.data
                 ?.filter((d) => d.bbLowerBand != null && d.time != null)
                 .map((d) => ({

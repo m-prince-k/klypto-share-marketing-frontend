@@ -9,6 +9,7 @@ import { getStockLogo } from "../../util/stockSymbol/helper";
 import NSE from "../../assets/NSE.svg";
 import BSE from "../../assets/BSE.svg";
 import { io } from "socket.io-client";
+import socket from "../../services/socket";
 
 export const ListingModal = ({
   isOpen,
@@ -90,7 +91,6 @@ export const ListingModal = ({
 
     setEquityLoading(true);
 
-    const socket = io("http://192.168.1.9:7000");
 
     socket.on("connect", () => {
       console.log("Socket connected, emitting getAllStocks");

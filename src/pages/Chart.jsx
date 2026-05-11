@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState, Fragment } from 'react';
 import { CandlestickSeries, createChart, LineSeries, CrosshairMode } from 'lightweight-charts';
 import io from 'socket.io-client';
+import socket from '../services/socket';
+import apiService from '../services/apiServices';
 
 const EVENTS = {
     GET_HISTORICAL_DATA: "getManualHistoricalData",
@@ -43,7 +45,7 @@ const GoldChart = () => {
     const lastBarRef = useRef(null);
     const socketRef = useRef(null);
 
-    const [selectedSymbol, setSelectedSymbol] = useState('TCS');
+    const [selectedSymbol, setSelectedSymbol] = useState('GOLD');
     const [selectedInterval, setSelectedInterval] = useState('1m');
     const [livePrice, setLivePrice] = useState(0);
     const [ohlcv, setOhlcv] = useState({ o: 0, h: 0, l: 0, c: 0, v: 0 });
@@ -152,7 +154,6 @@ const GoldChart = () => {
         rsiSeriesRef.current.createPriceLine({ price: 50, color: 'rgba(148, 163, 184, 0.1)', lineWidth: 1, lineStyle: 1, title: '50' });
         rsiSeriesRef.current.createPriceLine({ price: 30, color: 'rgba(16, 185, 129, 0.4)', lineWidth: 1, lineStyle: 2, title: '30' });
 
-        const socket = io("http://192.168.1.9:7000");
         socketRef.current = socket;
 
         socket.on("connect", () => {
@@ -191,43 +192,7 @@ const GoldChart = () => {
             setTimeout(() => setSyncAlerts(prev => prev.filter(a => a.timestamp !== status.timestamp)), 8000);
         });
 
-        socket.on(EVENTS.HISTORICAL_DATA_RESPONSE, (payload) => {
-            try {
-                if (payload.success && payload.data?.length > 0) {
-                    const istOffset = 5.5 * 60 * 60; // 5h 30m in seconds
-                    const formattedData = payload.data.map(c => {
-                        let t = Number(c.time);
-                        if (isNaN(t)) t = Math.floor(new Date(c.timestamp).getTime() / 1000);
-                        return {
-                            time: t + istOffset,
-                            open: parseFloat(c.open || 0), 
-                            high: parseFloat(c.high || 0),
-                            low: parseFloat(c.low || 0), 
-                            close: parseFloat(c.close || 0),
-                        };
-                    }).filter(c => !isNaN(c.time)).sort((a, b) => a.time - b.time);
-
-                    if (formattedData.length > 0) {
-                        seriesRef.current.setData(formattedData);
-                        allCandlesRef.current = [...formattedData];
-
-                        const rsiData = calculateRSI(formattedData);
-                        if (rsiData.length > 0) rsiSeriesRef.current.setData(rsiData);
-
-                        const last = formattedData[formattedData.length - 1];
-                        lastBarRef.current = { ...last };
-                        setLivePrice(last.close);
-                        setOhlcv({ o: last.open, h: last.high, l: last.low, c: last.close, v: 0 });
-                    }
-                } else {
-                    console.warn(`[Chart] Received empty or unsuccessful historical data`);
-                }
-            } catch (err) {
-                console.error("[Chart] Data processing error:", err);
-            } finally {
-                setIsLoading(false);
-            }
-        });
+        // socket.on(EVENTS.HISTORICAL_DATA_RESPONSE, (payload) => { ... handled by API now ... });
 
         socket.on(EVENTS.HISTORICAL_DATA_ERROR, (payload) => {
             console.error("[Chart] Historical Data Error:", payload.error);
@@ -311,12 +276,48 @@ const GoldChart = () => {
         const fromDateStr = initialFromDate.toISOString().split('T')[0];
 
         setIsLoading(true);
-        socket.emit(EVENTS.GET_HISTORICAL_DATA, {
-            symbol: selectedSymbol,
-            interval: intervalObj ? intervalObj.db : "ONE_MINUTE",
-            fromDate: fromDateStr,
-            toDate: new Date().toISOString(),
-            exchange: selectedSymbol === "GOLD" ? "MCX" : "NSE"
+        const interval = intervalObj ? intervalObj.db : "ONE_MINUTE";
+        const exchange = selectedSymbol === "GOLD" ? "MCX" : "NSE";
+        const url = `equity/historical-v2?symbol=${selectedSymbol}&interval=${interval}&segment=${exchange}&fromDate=${fromDateStr}&toDate=${new Date().toISOString()}`;
+
+        apiService.get(url).then(response => {
+            try {
+                const payload = response; // apiService returns response.data
+                if (payload.success && payload.data?.length > 0) {
+                    const istOffset = 5.5 * 60 * 60; // 5h 30m in seconds
+                    const formattedData = payload.data.map(c => {
+                        let t = Number(c.time);
+                        if (isNaN(t)) t = Math.floor(new Date(c.timestamp).getTime() / 1000);
+                        return {
+                            time: t + istOffset,
+                            open: parseFloat(c.open || 0), 
+                            high: parseFloat(c.high || 0),
+                            low: parseFloat(c.low || 0), 
+                            close: parseFloat(c.close || 0),
+                        };
+                    }).filter(c => !isNaN(c.time)).sort((a, b) => a.time - b.time);
+
+                    if (formattedData.length > 0) {
+                        seriesRef.current.setData(formattedData);
+                        allCandlesRef.current = [...formattedData];
+
+                        const rsiData = calculateRSI(formattedData);
+                        if (rsiData.length > 0) rsiSeriesRef.current.setData(rsiData);
+
+                        const last = formattedData[formattedData.length - 1];
+                        lastBarRef.current = { ...last };
+                        setLivePrice(last.close);
+                        setOhlcv({ o: last.open, h: last.high, l: last.low, c: last.close, v: 0 });
+                    }
+                }
+            } catch (err) {
+                console.error("[Chart] Data processing error:", err);
+            } finally {
+                setIsLoading(false);
+            }
+        }).catch(err => {
+            console.error("[Chart] Historical Data API Error:", err);
+            setIsLoading(false);
         });
 
         return () => {
@@ -374,7 +375,7 @@ const GoldChart = () => {
                             <select
                                 value={selectedSymbol}
                                 onChange={(e) => setSelectedSymbol(e.target.value)}
-                                className="form-select bg-slate-900 border-slate-800 text-white rounded-3 py-2 px-3 shadow-sm font-weight-black uppercase custom-select"
+                                className="form-select bg-slate-900 border-slate-800 text-black rounded-3 py-2 px-3 shadow-sm font-weight-black uppercase custom-select"
                                 style={{ minWidth: '160px', appearance: 'none', backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 16 16\' fill=\'%23ffffff\'%3e%3cpath fill-rule=\'evenodd\' d=\'M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z\'/%3e%3c/svg%3e")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '16px 12px' }}
                             >
                                 {stocks.map((s,idx) => (
