@@ -1102,6 +1102,7 @@ export default function Candlestick() {
     socketRef.current = null;
   };
 }, [selectedCurrency?.symbol, timeframeValue, chartType, fromDate, toDate]); // ✅ chartType added
+
   const zoomCharts = (delta) => {
     const charts = [
       chartRef.current,
