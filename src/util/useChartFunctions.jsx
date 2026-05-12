@@ -24,6 +24,7 @@ export default function useChartFunctions({
   fromDate,
   toDate,
   socketRef,
+  candlesRef,
 }) {
   /* ================= FETCH INDICATOR API ================= */
 
@@ -96,32 +97,7 @@ export default function useChartFunctions({
   //     return null;
   //   }
   // }
-  async function fetchDataByCurrency(
-    symbol,
-    interval,
-    fromDate,
-    toDate,
-    socket,
-  ) {
-    return new Promise((resolve, reject) => {
-      if (!socket) return reject(new Error("No socket"));
 
-      socket.emit("getManualHistoricalData", {
-        name,
-        interval,
-        fromDate: `${fromDate} 09:15`,
-        toDate: `${toDate} 15:30`,
-      });
-
-      socket.once("historicalDataResponse", (response) => {
-        resolve(response);
-      });
-
-      socket.once("historicalDataError", (err) => {
-        reject(err);
-      });
-    });
-  }
 
   /* ================= FETCH INDICATORS ================= */
 
@@ -136,12 +112,13 @@ export default function useChartFunctions({
       selectedIndicator.map(async (indicator) => {
         try {
           const result = await fetchDataForIndicators(
+            candlesRef.current,
             selectedCurrency,
             indicator,
             timeframeValue,
             fromDate,
             toDate,
-            socketRef.current,
+            socketRef,
           );
           processIndicatorResponse(indicator, result);
         } catch (error) {
@@ -1087,33 +1064,37 @@ export default function useChartFunctions({
   }
 
   return {
-    fetchDataByCurrency,
     fetchIndicatorData,
     processIndicatorResponse,
   };
 }
 async function fetchDataForIndicators(
+  candles,
   selectedCurrency,
   type,
   timeframeValue,
   fromDate,
   toDate,
-  socket,
+  socketRef,
 ) {
   try {
     const response = await new Promise((resolve, reject) => {
-      if (!socket) return reject(new Error("No socket"));
+      if (!socketRef.current) return reject(new Error("No socket"));
 
-      socket.emit("getIndicatorDetails", {
+      socketRef.current?.emit("getIndicatorDetails", {
         symbol: selectedCurrency?.name,
         interval: timeframeValue,
+        fromdate: fromDate,
+        todate: toDate,
         type,
-        fromDate: `${fromDate} 09:15`,
-        toDate: `${toDate} 15:30`,
+        candles, // ✅ MOST IMPORTANT
       });
-
-      socket.once("indicatorDetailsResponse", (data) => resolve(data));
-      socket.once("indicatorDetailsError", (err) => reject(err));
+      socketRef.current?.once("indicatorDetailsResponse", (data) => {
+        console.log(data, "===========================");
+        resolve(data);
+      });
+      
+      socketRef.current?.once("indicatorDetailsError", (err) => reject(err));
     });
 
     console.log("Raw indicator data for", type, ":", response);
@@ -1130,6 +1111,9 @@ async function fetchDataForIndicators(
           value: d[field] != null ? Number(d[field]) : null,
         }))
         .filter((d) => d.value !== null) ?? [];
+
+    console.log("mapped conversion", response.data, "conversionLine");
+
 
     switch (type) {
       /* ---------------- SINGLE VALUE ---------------- */
@@ -1843,7 +1827,7 @@ async function fetchDataForIndicators(
               response.data
                 ?.filter((d) => d.rsi != null && d.time != null)
                 .map((d) => ({
-                  time: Number(d.time),
+                  time: Number(d.time)+ IST_OFFSET,
                   value: d.rsi,
                 })) ?? [],
 
@@ -1851,7 +1835,7 @@ async function fetchDataForIndicators(
               response.data
                 ?.filter((d) => d.smoothingMA != null && d.time != null)
                 .map((d) => ({
-                  time: Number(d.time),
+                  time: Number(d.time)+ IST_OFFSET,
                   value: d.smoothingMA,
                 })) ?? [],
 
@@ -1859,7 +1843,7 @@ async function fetchDataForIndicators(
               response.data
                 ?.filter((d) => d.bbUpperBand != null && d.time != null)
                 .map((d) => ({
-                  time: Number(d.time),
+                  time: Number(d.time) + IST_OFFSET,
                   value: d.bbUpperBand,
                 })) ?? [],
 
@@ -1867,7 +1851,7 @@ async function fetchDataForIndicators(
               response.data
                 ?.filter((d) => d.bbLowerBand != null && d.time != null)
                 .map((d) => ({
-                  time: Number(d.time),
+                  time: Number(d.time)+ IST_OFFSET,
                   value: d.bbLowerBand,
                 })) ?? [],
           },

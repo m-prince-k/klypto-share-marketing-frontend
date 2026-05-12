@@ -32,7 +32,6 @@ const LeftWatchlist = ({ onClose, setSelectedCurrency, alertResult }) => {
 
     return () => {
       socket.off("getAllStocks");
-      socket.disconnect();
     };
   }, []);
 

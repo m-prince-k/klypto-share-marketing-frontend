@@ -81,12 +81,12 @@ export default function Candlestick() {
   const [selectedCurrency, setSelectedCurrency] = useState({
     symbol: "GOLD",
     name: "GOLD",
-    // token: ,
+    token: 11536,
     segment: "MCX",
     expiry: "",
   });
-  const [fromDate, setFromDate] = useState("2026-03-01");
-  const [toDate, setToDate] = useState("2026-05-07");
+  const [fromDate, setFromDate] = useState("2026-03-11");
+  const [toDate, setToDate] = useState("2026-05-11");
   const [selectedIndicator, setSelectedIndicator] = useState([]);
   const [rangeValue, setRangeValue] = useState("1000");
   const [chartType, setChartType] = useState("candlestick");
@@ -152,6 +152,78 @@ export default function Candlestick() {
     PANE_INDICATORS.has(ind),
   );
 
+  useEffect(() => {
+    if (!selectedIndicator.length || mainChartLoading) return;
+
+    const isContextChange =
+      prevTimeframeRef.current !== timeframeValue ||
+      prevCurrencyRef.current !== selectedCurrency ||
+      prevChartTypeRef.current !== chartType;
+
+    let indicatorsToFetch = selectedIndicator;
+
+    if (!isContextChange) {
+      // ✅ Only filter when indicator list changes
+      indicatorsToFetch = selectedIndicator.filter(
+        (ind) => !fetchedIndicatorsRef.current.has(ind),
+      );
+
+      if (indicatorsToFetch.length === 0) return;
+    } else {
+      // 🔥 Reset on timeframe / currency change
+      fetchedIndicatorsRef.current.clear();
+
+      // Clear existing indicator chart series to prevent overlaying old data
+      selectedIndicator.forEach((indicator) => {
+        const entry = indicatorSeriesRef.current[indicator];
+        if (!entry) return;
+
+        const paneKey = resolvePaneKey(indicator);
+        const pane = panesRef.current[paneKey];
+        const chartToUse = pane?.chart ?? chartRef.current;
+        if (!chartToUse) return;
+
+        if (typeof entry === "object" && !entry.priceScale) {
+          Object.values(entry).forEach((series) => {
+            if (!series || typeof series.setData !== "function") return;
+            try {
+              chartToUse.removeSeries(series);
+            } catch {}
+          });
+        } else {
+          try {
+            chartToUse.removeSeries(entry);
+          } catch {}
+        }
+        delete indicatorSeriesRef.current[indicator];
+        delete indicatorDataRef.current[indicator];
+      });
+    }
+
+    setIndicatorLoading(true);
+    fetchIndicatorData(indicatorsToFetch, selectedCurrency, timeframeValue)
+      .then(() => {
+        setIndicatorUpdateTrigger((v) => v + 1);
+      })
+      .finally(() => {
+        setIndicatorLoading(false);
+      });
+
+    indicatorsToFetch.forEach((ind) => fetchedIndicatorsRef.current.add(ind));
+
+    // update previous values
+    prevTimeframeRef.current = timeframeValue;
+    prevCurrencyRef.current = selectedCurrency;
+    prevChartTypeRef.current = chartType;
+  }, [
+    selectedIndicator,
+    selectedCurrency,
+    timeframeValue,
+    chartType,
+    fromDate,
+    toDate,
+    mainChartLoading,
+  ]);
 
   const toggleIndicatorVisibility = (indicator) => {
     const currentVisible = indicatorVisibility[indicator] ?? true;
@@ -638,10 +710,6 @@ export default function Candlestick() {
   useEffect(() => {
     if (!selectedCurrency || !timeframeValue) return;
     let isMounted = true;
-    
-    // 🔥 Set loading at the START to avoid race conditions
-    setMainChartLoading(true);
-
     console.log("Socket object:", socket);
     console.log("Connected:", socket.connected);
     console.log("Socket ID:", socket.id);
@@ -651,8 +719,9 @@ export default function Candlestick() {
     const intervalSec = TIMEFRAME_TO_SECONDS[timeframeValue];
 
     const requestHistoricalData = () => {
+      // 🔥 Match Chart.jsx emit style
       socket.emit("getManualHistoricalData", {
-        symbol: selectedCurrency?.symbol,
+        symbol: selectedCurrency?.name,
         interval:
           TIMEFRAME_TO_SECONDS[timeframeValue] === 86400
             ? "ONE_DAY"
@@ -664,61 +733,13 @@ export default function Candlestick() {
                   ? "FIVE_MINUTE"
                   : "ONE_MINUTE",
         fromDate: fromDate,
-        toDate: new Date().toISOString(),
+        toDate: new Date().toISOString(), // Use current time for toDate like Chart.jsx
         exchange: selectedCurrency?.segment || "NSE",
       });
     };
 
-    const requestIndicators = () => {
-      if (!selectedIndicator.length) return;
-
-      const isContextChange =
-        prevTimeframeRef.current !== timeframeValue ||
-        prevCurrencyRef.current !== selectedCurrency ||
-        prevChartTypeRef.current !== chartType;
-
-      let indicatorsToFetch = selectedIndicator;
-
-      if (!isContextChange) {
-        indicatorsToFetch = selectedIndicator.filter(
-          (ind) => !fetchedIndicatorsRef.current.has(ind),
-        );
-        if (indicatorsToFetch.length === 0) return;
-      } else {
-        fetchedIndicatorsRef.current.clear();
-        selectedIndicator.forEach((indicator) => {
-          const entry = indicatorSeriesRef.current[indicator];
-          if (!entry) return;
-          const paneKey = resolvePaneKey(indicator);
-          const pane = panesRef.current[paneKey];
-          const chartToUse = pane?.chart ?? chartRef.current;
-          if (!chartToUse) return;
-          if (typeof entry === "object" && !entry.priceScale) {
-            Object.values(entry).forEach((series) => {
-              if (series?.setData) chartToUse.removeSeries(series);
-            });
-          } else {
-            if (entry?.setData) chartToUse.removeSeries(entry);
-          }
-          delete indicatorSeriesRef.current[indicator];
-          delete indicatorDataRef.current[indicator];
-        });
-      }
-
-      setIndicatorLoading(true);
-      fetchIndicatorData(indicatorsToFetch, selectedCurrency, timeframeValue)
-        .then(() => setIndicatorUpdateTrigger((v) => v + 1))
-        .finally(() => setIndicatorLoading(false));
-
-      indicatorsToFetch.forEach((ind) => fetchedIndicatorsRef.current.add(ind));
-      prevTimeframeRef.current = timeframeValue;
-      prevCurrencyRef.current = selectedCurrency;
-      prevChartTypeRef.current = chartType;
-    };
-
     if (socket.connected) {
       requestHistoricalData();
-      requestIndicators();
     } else {
       socket.connect();
     }
@@ -726,7 +747,6 @@ export default function Candlestick() {
     socket.on("connect", () => {
       console.log("✅ SOCKET CONNECTED", socket);
       requestHistoricalData();
-      requestIndicators();
     });
 
     // ✅ Historical data response — replaces loadChart / fetchDataByCurrency
@@ -1069,9 +1089,21 @@ export default function Candlestick() {
     socket.on("rsiScannerResponse", (data) => {
       console.log("📡 RAW RSI SCANNER DATA:", data);
       let results = data?.data || data;
-      if (Array.isArray(results)) {
-        setAlertResult(results);
+      
+      // If it's an object (symbol as key), convert to array
+      if (results && typeof results === "object" && !Array.isArray(results)) {
+        results = Object.entries(results).map(([symbol, details]) => ({
+          symbol,
+          ...details
+        }));
       }
+
+      if (Array.isArray(results) && results.length > 0) {
+        console.log(`✅ RSI SCANNER: Found ${results.length} matches:`, results.map(s => s.symbol).join(", "));
+      } else {
+        console.log("📡 RSI SCANNER: No matches or invalid data received:", results);
+      }
+      setAlertResult(Array.isArray(results) ? results : []);
     });
 
     socket.on("disconnect", () => console.log("❌ SOCKET DISCONNECTED"));
@@ -1079,6 +1111,8 @@ export default function Candlestick() {
       console.log("❌ SOCKET ERROR:", err.message),
     );
 
+    // 🔥 Show loader immediately while waiting for socket data
+    setMainChartLoading(true);
 
     return () => {
       isMounted = false;
@@ -1093,14 +1127,7 @@ export default function Candlestick() {
       socket.off("connect_error");
       socketRef.current = null;
     };
-  }, [
-    selectedCurrency?.symbol,
-    timeframeValue,
-    chartType,
-    fromDate,
-    toDate,
-    selectedIndicator,
-  ]);
+  }, [selectedCurrency?.name, timeframeValue, chartType, fromDate, toDate]); // ✅ chartType added
 
   const zoomCharts = (delta) => {
     const charts = [

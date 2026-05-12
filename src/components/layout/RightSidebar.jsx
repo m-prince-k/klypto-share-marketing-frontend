@@ -2,7 +2,14 @@ import React from "react";
 import { FiList, FiBriefcase, FiAlignLeft, FiLayers, FiMoreVertical } from "react-icons/fi";
 import { BsLink45Deg } from "react-icons/bs";
 
-const RightSidebar = ({ isWatchlistOpen, toggleWatchlist }) => {
+const RightSidebar = ({ 
+  isWatchlistOpen, 
+  toggleWatchlist, 
+  isDetailsOpen, 
+  toggleDetails, 
+  isAlertsOpen, 
+  toggleAlerts 
+}) => {
   const styles = {
     container: {
       display: "flex",
@@ -33,8 +40,8 @@ const RightSidebar = ({ isWatchlistOpen, toggleWatchlist }) => {
 
   const menuItems = [
     { id: 'watchlist', icon: <FiList size={20} />, label: "Watchlist", active: isWatchlistOpen },
-    { id: 'positions', icon: <FiBriefcase size={20} />, label: "Positions" },
-    { id: 'orders', icon: <FiAlignLeft size={20} />, label: "Orders" },
+    { id: 'details', icon: <FiBriefcase size={20} />, label: "Details", active: isDetailsOpen },
+    { id: 'alerts', icon: <FiAlignLeft size={20} />, label: "Alerts" , active: isAlertsOpen},
     { id: 'depth', icon: <FiLayers size={20} />, label: "Market\nDepth" },
     { id: 'options', icon: <BsLink45Deg size={20} />, label: "Option\nChain" },
     { id: 'more', icon: <FiMoreVertical size={20} />, label: "More" },
@@ -54,6 +61,10 @@ const RightSidebar = ({ isWatchlistOpen, toggleWatchlist }) => {
           onClick={() => {
             if (item.id === 'watchlist' && toggleWatchlist) {
               toggleWatchlist();
+            } else if (item.id === 'details' && toggleDetails) {
+              toggleDetails();
+            } else if (item.id === 'alerts' && toggleAlerts) {
+              toggleAlerts();
             }
           }}
         >

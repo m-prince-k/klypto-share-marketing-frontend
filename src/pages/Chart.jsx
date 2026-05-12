@@ -321,7 +321,7 @@ const GoldChart = () => {
         });
 
         return () => {
-            socket.disconnect();
+            // socket.disconnect();
             if (chartRef.current) chartRef.current.remove();
         };
     }, [selectedSymbol, selectedInterval]);
