@@ -13,22 +13,18 @@ useEffect(() => {
   /*
     INITIAL STOCKS
   */
-  socket.on("stocks", (data) => {
-    console.log("stocks event", data);
-
-    const stocksArray = Array.isArray(data)
-      ? data
-      : data?.stocks || [];
-
+  const handleStocks = (data) => {
+    // console.log("stocks event", data);
+    const stocksArray = Array.isArray(data) ? data : data?.stocks || [];
     setStocksData(stocksArray);
-  });
+  };
+  socket.on("stocks", handleStocks);
 
   /*
     SINGLE STOCK UPDATE
   */
-  socket.on("stockUpdate", (updatedStock) => {
+  const handleStockUpdate = (updatedStock) => {
     // console.log("stockUpdate", updatedStock);
-
     if (!updatedStock?.token) return;
 
     setStocksData((prev) =>
@@ -38,12 +34,13 @@ useEffect(() => {
           : stock
       )
     );
-  });
+  };
+  socket.on("stockUpdate", handleStockUpdate);
 
   /*
     LIVE TICK
   */
-  socket.on("liveTick", (tick) => {
+  const handleLiveTick = (tick) => {
     // console.log("liveTick", tick);
 
     if (!tick?.token) return;
@@ -58,13 +55,14 @@ useEffect(() => {
           : stock
       )
     );
-  });
+  };
+  socket.on("liveTick", handleLiveTick);
 
     return () => {
       // socket.disconnect(); // 🔥 Do NOT disconnect singleton socket
-      socket.off("stocks");
-      socket.off("stockUpdate");
-      socket.off("liveTick");
+      socket.off("stocks", handleStocks);
+      socket.off("stockUpdate", handleStockUpdate);
+      socket.off("liveTick", handleLiveTick);
     };
   }, []);
 

@@ -933,6 +933,7 @@ export default function Candlestick() {
     });
 
     const handleChartLiveTick = (tick) => {
+      // console.log("📈 [Chart Live Tick] Received:", tick?.symbol || tick?.name, "Target:", selectedCurrency?.name);
       if (tick.symbol !== selectedCurrency?.name) return;
       if (!seriesRef.current) return;
 
@@ -1090,7 +1091,7 @@ export default function Candlestick() {
       });
     };
     socket.on("liveIndicatorResponse", handleChartLiveIndicator);
-    
+
     socket.on("disconnect", () => console.log("❌ SOCKET DISCONNECTED"));
     socket.on("connect_error", (err) =>
       console.log("❌ SOCKET ERROR:", err.message),
@@ -1345,6 +1346,11 @@ export default function Candlestick() {
                     onAddStock={addStockToDetails}
                     onRemoveStock={removeStockFromDetails}
                     setSelectedCurrency={setSelectedCurrency}
+                    addAlert={addAlert}
+                    clearAllCoins={clearAllCoins}
+                    scanner={scanner}
+                    matchedCoins={matchedCoins}
+                    removeCoin={removeCoin}
                   />
                 )}
               </div>
