@@ -174,6 +174,7 @@ export default function IndicatorPropertyDialog({
   latestIndicatorValuesRef,
   fromDate,
   toDate,
+  setIndicatorLoading,
 }) {
   const labelStyle = {
     display: "inline-block",
@@ -183,7 +184,6 @@ export default function IndicatorPropertyDialog({
   };
 
   const currentConfig = indicatorConfigs[activeBarIndicator];
-  const [indicatorLoading, setIndicatorLoading] = useState(false);
 
   const updateProperty = (key, value) => {
     setIndicatorConfigs((prev) => ({
@@ -242,9 +242,9 @@ export default function IndicatorPropertyDialog({
     console.log(payload, "payloadddddddddd");
     console.log(config, "configggggg");
 
-    setIndicatorLoading(true);
+    setIndicatorProperty(false);
+    setIndicatorLoading(true); // START LOADER
     try {
-      setIndicatorLoading(true); // START LOADER
 
       const response = await apiService.post(
         `/equity/updateIndicator?symbol=${selectedCurrency?.name}&interval=${timeframeValue}&fromdate=${fromDate} 09:15&todate=${toDate} 15:30`,
@@ -260,8 +260,6 @@ export default function IndicatorPropertyDialog({
         latestIndicatorValuesRef,
         maType,
       );
-
-      setIndicatorProperty(false);
     } catch (error) {
       if (error.response) {
         console.error("Server responded with error:");
@@ -2240,7 +2238,9 @@ export default function IndicatorPropertyDialog({
               </span>
             }
           >
-            <div className="px-4 py-3">{renderIndicatorSetting()}</div>
+            <div className="custom-scrollbar" style={{ maxHeight: "350px", overflowY: "auto", overflowX: "hidden" }}>
+              <div className="px-4 py-3">{renderIndicatorSetting()}</div>
+            </div>
           </Tab>
 
           <Tab
@@ -2251,13 +2251,15 @@ export default function IndicatorPropertyDialog({
               </span>
             }
           >
-            <div className="px-4 py-3">
-              <IndicatorStyle
-                indicatorStyle={indicatorStyle}
-                setIndicatorStyle={setIndicatorStyle}
-                activeBarIndicator={activeBarIndicator}
-                indicatorConfigs={indicatorConfigs}
-              />
+            <div className="custom-scrollbar" style={{ maxHeight: "350px", overflowY: "auto", overflowX: "hidden" }}>
+              <div className="px-4 py-3">
+                <IndicatorStyle
+                  indicatorStyle={indicatorStyle}
+                  setIndicatorStyle={setIndicatorStyle}
+                  activeBarIndicator={activeBarIndicator}
+                  indicatorConfigs={indicatorConfigs}
+                />
+              </div>
             </div>
           </Tab>
         </Tabs>
@@ -2290,6 +2292,19 @@ export default function IndicatorPropertyDialog({
       }
       .tab-content {
         border: none !important;
+      }
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 5px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #d1d5db;
+        border-radius: 10px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #9ca3af;
       }
     `}</style>
       </Modal.Body>

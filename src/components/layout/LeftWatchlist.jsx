@@ -6,61 +6,83 @@ const LeftWatchlist = ({ onClose, setSelectedCurrency, alertResult }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [stocksData, setStocksData] = useState([]);
 
-useEffect(() => {
+  useEffect(() => {
+    socket.emit("getMasterWatchlist");
 
-  socket.emit("getAllStocks");
-
-  /*
+    /*
     INITIAL STOCKS
   */
-  const handleStocks = (data) => {
-    console.log("stocks event", data);
-    const stocksArray = Array.isArray(data) ? data : data?.stocks || [];
-    setStocksData(stocksArray);
-  };
-  socket.on("stocks", handleStocks);
+    const handleStocks = (data) => {
+      console.log("stocks event", data);
 
-  /*
+      const equity = (data?.data?.equity || []).map((item) => ({
+        ...item,
+        category: "EQ",
+      }));
+
+      const futures = (data?.data?.futures || []).map((item) => ({
+        ...item,
+        category: "FUT",
+      }));
+
+      const options = (data?.data?.trendingOptions || []).map((item) => ({
+        ...item,
+        category: "OPT",
+      }));
+
+      const indices = (data?.data?.indices || []).map((item) => ({
+        ...item,
+        category: "IDX",
+      }));
+
+      const combined = [...indices, ...equity, ...futures, ...options];
+
+      setStocksData(combined);
+    };
+    socket.on("masterWatchlistResponse", handleStocks);
+
+    /*
     SINGLE STOCK UPDATE
+    (if the backend sends single stock updates, it might be on 'stockUpdate' or 'liveTick')
   */
-  const handleStockUpdate = (updatedStock) => {
-    // console.log("stockUpdate", updatedStock);
-    if (!updatedStock?.token) return;
+    const handleStockUpdate = (updatedStock) => {
+      // Handle potential single stock update if emitted
+      if (!updatedStock?.token) return;
 
-    setStocksData((prev) =>
-      prev.map((stock) =>
-        stock.token === updatedStock.token
-          ? { ...stock, ...updatedStock }
-          : stock
-      )
-    );
-  };
-  socket.on("stockUpdate", handleStockUpdate);
+      setStocksData((prev) =>
+        prev.map((stock) =>
+          stock.token === updatedStock.token
+            ? { ...stock, ...updatedStock }
+            : stock,
+        ),
+      );
+    };
+    socket.on("stockUpdate", handleStockUpdate);
 
-  /*
+    /*
     LIVE TICK
   */
-  const handleLiveTick = (tick) => {
-    // console.log("liveTick", tick);
+    const handleLiveTick = (tick) => {
+      // console.log("liveTick", tick);
 
-    if (!tick?.token) return;
+      if (!tick?.token) return;
 
-    setStocksData((prev) =>
-      prev.map((stock) =>
-        stock.token === tick.token
-          ? {
-              ...stock,
-              ...tick,
-            }
-          : stock
-      )
-    );
-  };
-  socket.on("liveTick", handleLiveTick);
+      setStocksData((prev) =>
+        prev.map((stock) =>
+          stock.token === tick.token
+            ? {
+                ...stock,
+                ...tick,
+              }
+            : stock,
+        ),
+      );
+    };
+    socket.on("liveTick", handleLiveTick);
 
     return () => {
       // socket.disconnect(); // 🔥 Do NOT disconnect singleton socket
-      socket.off("stocks", handleStocks);
+      socket.off("masterWatchlistResponse", handleStocks);
       socket.off("stockUpdate", handleStockUpdate);
       socket.off("liveTick", handleLiveTick);
     };
@@ -150,7 +172,7 @@ useEffect(() => {
       color: "#d1d4dc",
       display: "flex",
       alignItems: "center",
-      gap: "4px",
+      gap: "8px",
     },
     segment: {
       fontSize: "0.6rem",
@@ -271,12 +293,45 @@ useEffect(() => {
               >
                 <div style={styles.stockLeft}>
                   <div style={styles.stockName}>
-                    {stock?.symbol}
-                    {stock?.name}
+                    {/* CATEGORY CIRCLE */}
+                    <div
+                      style={{
+                        width: 22,
+                        height: 22,
+                        minWidth: 22,
+                        borderRadius: "50%",
+                        background:
+                          stock.category === "EQ"
+                            ? "#2563eb"
+                            : stock.category === "FUT"
+                              ? "#7c3aed"
+                              : stock.category === "OPT"
+                                ? "#ea580c"
+                                : "#475569",
+                        color: "#fff",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "9px",
+                        fontWeight: 700,
+                      }}
+                    >
+                      {stock.category}
+                    </div>
 
-                    {/* {stock.symbol} {stock.rsi} */}
-                    {/* <span className="text-xs text-gray-500">{stock.userCode}</span> */}
-                    <span style={styles.segment}>{stock?.segment}</span>
+                    {/* SYMBOL */}
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                      }}
+                    >
+                      <span>
+                        {/* {stock?.symbol} */}
+                         {stock?.name}</span>
+
+                      {/* <span style={styles.segment}>{stock?.segment}</span> */}
+                    </div>
                   </div>
                 </div>
                 <div style={styles.stockRight}>

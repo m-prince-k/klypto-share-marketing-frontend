@@ -89,7 +89,7 @@ export default function Candlestick() {
     expiry: "",
   });
   const [fromDate, setFromDate] = useState("2026-03-01");
-  const [toDate, setToDate] = useState("2026-05-07");
+  const [toDate, setToDate] = useState(new Date().toISOString().split("T")[0]);
   const [selectedIndicator, setSelectedIndicator] = useState([]);
   const [rangeValue, setRangeValue] = useState("1000");
   const [chartType, setChartType] = useState("candlestick");
@@ -112,6 +112,7 @@ export default function Candlestick() {
       });
     }
   };
+
 
   const removeStockFromDetails = (symbol) => {
     setDetailsList((prev) => prev.filter((s) => s.symbol !== symbol));
@@ -754,9 +755,11 @@ export default function Candlestick() {
 
     // ✅ Historical data response — replaces loadChart / fetchDataByCurrency
     socket.on("historicalDataResponse", (response) => {
+      console.log("HISTORICAL DATA RESPONSE", response?.data);
+
       if (!isMounted || !chartRef.current) return;
 
-      console.log("HISTORICAL DATA RESPONSE", response);
+
       setMainChartLoading(false);
 
       // Remove previous series
@@ -1337,13 +1340,13 @@ export default function Candlestick() {
                   )}
                   {/* -------------------------------sub-header live Values----------------------- */}
                   <div
-                    className="d-flex px-2 py-1 align-items-center gap-2 justify-content-start position-absolute top-0 start-0 z-index-10"
+                    className="position-absolute top-0 start-0"
                     style={{
-                      background: "#1e2330",
-                      borderBottom: "1px solid #2e3347",
-                      borderRight: "1px solid #2e3347",
-                      borderBottomRightRadius: 8,
                       zIndex: 10,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 8,
+                      padding: "8px",
                     }}
                   >
                     <style>{`
@@ -1359,136 +1362,168 @@ export default function Candlestick() {
     }
   `}</style>
 
-                    {/* Symbol + Timeframe */}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: "#94a3b8",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {selectedCurrency?.symbol} : {timeframeValue}{" "}
-                      {selectedCurrency?.segment}
-                    </span>
-
-                    {/* Market status dot */}
-                    <div
-                      style={{
-                        position: "relative",
-                        width: 12,
-                        height: 12,
-                        flexShrink: 0,
-                      }}
-                    >
+                    <div className="d-flex align-items-center gap-2">
+                      {/* Symbol + Timeframe */}
                       <span
-                        className="dot-ping"
                         style={{
-                          background: isMarketOpen ? "#22c55e" : "#f87171",
+                          fontSize: 13,
+                          color: "#94a3b8",
+                          whiteSpace: "nowrap",
                         }}
-                      />
-                      <span
+                      >
+                        {selectedCurrency?.name} : {timeframeValue}{" "}
+                        {selectedCurrency?.segment}
+                      </span>
+
+                      {/* Market status dot */}
+                      <div
                         style={{
-                          display: "block",
+                          position: "relative",
                           width: 12,
                           height: 12,
-                          borderRadius: "50%",
-                          background: isMarketOpen ? "#22c55e" : "#f87171",
-                          position: "relative",
+                          flexShrink: 0,
                         }}
-                      />
+                      >
+                        <span
+                          className="dot-ping"
+                          style={{
+                            background: isMarketOpen ? "#22c55e" : "#f87171",
+                          }}
+                        />
+                        <span
+                          style={{
+                            display: "block",
+                            width: 12,
+                            height: 12,
+                            borderRadius: "50%",
+                            background: isMarketOpen ? "#22c55e" : "#f87171",
+                            position: "relative",
+                          }}
+                        />
+                      </div>
+
+                      {/* OHLC Values */}
+                      {/* OHLC Values - direct DOM, zero re-render */}
+                      <div
+                        className="d-flex align-items-center gap-1"
+                        ref={ohlcvDisplayRef}
+                      >
+                        {SINGLE_VALUE_CHARTS.includes(chartType) ? (
+                          <span
+                            data-o=""
+                            data-val=""
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 500,
+                              color: "#60a5fa",
+                              padding: "2px 6px",
+                            }}
+                          >
+                            --
+                          </span>
+                        ) : (
+                          <>
+                            <span
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 500,
+                                padding: "2px 5px",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              <span style={{ color: "#64748b" }}>O: </span>
+                              <span
+                                data-o=""
+                                data-val=""
+                                style={{ color: "#22c55e" }}
+                              >
+                                --
+                              </span>
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 500,
+                                padding: "2px 5px",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              <span style={{ color: "#64748b" }}>H: </span>
+                              <span
+                                data-h=""
+                                data-val=""
+                                style={{ color: "#22c55e" }}
+                              >
+                                --
+                              </span>
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 500,
+                                padding: "2px 5px",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              <span style={{ color: "#64748b" }}>L: </span>
+                              <span
+                                data-l=""
+                                data-val=""
+                                style={{ color: "#22c55e" }}
+                              >
+                                --
+                              </span>
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 500,
+                                padding: "2px 5px",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              <span style={{ color: "#64748b" }}>C: </span>
+                              <span
+                                data-c=""
+                                data-val=""
+                                style={{ color: "#22c55e" }}
+                              >
+                                --
+                              </span>
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
 
-                    {/* OHLC Values */}
-                    {/* OHLC Values - direct DOM, zero re-render */}
-                    <div
-                      className="d-flex align-items-center gap-1"
-                      ref={ohlcvDisplayRef}
-                    >
-                      {SINGLE_VALUE_CHARTS.includes(chartType) ? (
-                        <span
-                          data-o=""
-                          data-val=""
-                          style={{
-                            fontSize: 13,
-                            fontWeight: 500,
-                            color: "#60a5fa",
-                            padding: "2px 6px",
-                          }}
-                        >
-                          --
-                        </span>
-                      ) : (
-                        <>
-                          <span
-                            style={{
-                              fontSize: 13,
-                              fontWeight: 500,
-                              padding: "2px 5px",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            <span style={{ color: "#64748b" }}>O: </span>
-                            <span
-                              data-o=""
-                              data-val=""
-                              style={{ color: "#22c55e" }}
-                            >
-                              --
-                            </span>
-                          </span>
-                          <span
-                            style={{
-                              fontSize: 13,
-                              fontWeight: 500,
-                              padding: "2px 5px",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            <span style={{ color: "#64748b" }}>H: </span>
-                            <span
-                              data-h=""
-                              data-val=""
-                              style={{ color: "#22c55e" }}
-                            >
-                              --
-                            </span>
-                          </span>
-                          <span
-                            style={{
-                              fontSize: 13,
-                              fontWeight: 500,
-                              padding: "2px 5px",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            <span style={{ color: "#64748b" }}>L: </span>
-                            <span
-                              data-l=""
-                              data-val=""
-                              style={{ color: "#22c55e" }}
-                            >
-                              --
-                            </span>
-                          </span>
-                          <span
-                            style={{
-                              fontSize: 13,
-                              fontWeight: 500,
-                              padding: "2px 5px",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            <span style={{ color: "#64748b" }}>C: </span>
-                            <span
-                              data-c=""
-                              data-val=""
-                              style={{ color: "#22c55e" }}
-                            >
-                              --
-                            </span>
-                          </span>
-                        </>
-                      )}
+                    <div style={{ display: "flex", gap: "10px" }}>
+                      <button
+                        style={{
+                          padding: "10px 20px",
+                          border: "1px solid green",
+                          background: "white",
+                          color: "green",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontWeight: "600",
+                        }}
+                      >
+                        Buy
+                      </button>
+
+                      <button
+                        style={{
+                          padding: "10px 20px",
+                          border: "1px solid red",
+                          background: "white",
+                          color: "red",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontWeight: "600",
+                        }}
+                      >
+                        Sell
+                      </button>
                     </div>
                   </div>
 
@@ -1498,7 +1533,7 @@ export default function Candlestick() {
                     <div
                       style={{
                         position: "absolute",
-                        top: 40,
+                        top: 90,
                         left: 8,
                         display: "flex",
                         flexDirection: "column",
@@ -1856,6 +1891,7 @@ export default function Candlestick() {
               latestIndicatorValuesRef={latestIndicatorValuesRef}
               fromDate={fromDate}
               toDate={toDate}
+              setIndicatorLoading={setIndicatorLoading}
             />
           </div>
         </div>

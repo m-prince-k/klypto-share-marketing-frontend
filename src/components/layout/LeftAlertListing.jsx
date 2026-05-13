@@ -1,7 +1,13 @@
 import React from "react";
 import { FiX, FiTrash2 } from "react-icons/fi";
+import { Link } from "react-router-dom";
 
-const LeftAlertListing = ({ onClose, alertResult, setAlertResult, setSelectedCurrency }) => {
+const LeftAlertListing = ({
+  onClose,
+  alertResult,
+  setAlertResult,
+  setSelectedCurrency,
+}) => {
   const styles = {
     container: {
       display: "flex",
@@ -10,7 +16,8 @@ const LeftAlertListing = ({ onClose, alertResult, setAlertResult, setSelectedCur
       background: "#131722",
       color: "#d1d4dc",
       borderRight: "1px solid #2a2e39",
-      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      fontFamily:
+        "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     },
     header: {
       display: "flex",
@@ -81,7 +88,7 @@ const LeftAlertListing = ({ onClose, alertResult, setAlertResult, setSelectedCur
       color: "#787b86",
       padding: "20px",
       textAlign: "center",
-    }
+    },
   };
 
   const handleClear = () => {
@@ -96,7 +103,7 @@ const LeftAlertListing = ({ onClose, alertResult, setAlertResult, setSelectedCur
         symbol: item.symbol,
         name: item.name || item.symbol,
         token: item.token,
-        segment: item.segment || "NSE"
+        segment: item.segment || "NSE",
       });
     }
     if (setActiveTab) {
@@ -114,13 +121,13 @@ const LeftAlertListing = ({ onClose, alertResult, setAlertResult, setSelectedCur
         .alert-item:hover { background-color: #2a2e39; }
         .clear-btn:hover { background-color: #2a2e39; color: #d1d4dc; }
       `}</style>
-      
+
       <div style={styles.header}>
         <span>Alert Scanner Results</span>
         <div style={styles.headerActions}>
           {results.length > 0 && (
-            <button 
-              className="clear-btn" 
+            <button
+              className="clear-btn"
               style={styles.clearBtn}
               onClick={handleClear}
             >
@@ -128,34 +135,154 @@ const LeftAlertListing = ({ onClose, alertResult, setAlertResult, setSelectedCur
               <span>Clear</span>
             </button>
           )}
-          <FiX style={{ cursor: "pointer", color: "#787b86" }} onClick={onClose} />
+          <FiX
+            style={{ cursor: "pointer", color: "#787b86" }}
+            onClick={onClose}
+          />
         </div>
       </div>
 
       <div className="custom-scrollbar" style={styles.listContainer}>
         {results.length === 0 ? (
           <div style={styles.emptyState}>
-            <div style={{ fontSize: "2rem", marginBottom: "12px", opacity: 0.5 }}>🔔</div>
-            <p style={{ fontWeight: "600", fontSize: "0.9rem", color: "#d1d4dc" }}>No active alerts</p>
-            <p style={{ fontSize: "0.75rem", marginTop: "8px", lineHeight: "1.4" }}>
+            <div
+              style={{ fontSize: "2rem", marginBottom: "12px", opacity: 0.5 }}
+            >
+              🔔
+            </div>
+            <p
+              style={{
+                fontWeight: "600",
+                fontSize: "0.9rem",
+                color: "#d1d4dc",
+              }}
+            >
+              No active alerts
+            </p>
+            <p
+              style={{
+                fontSize: "0.75rem",
+                marginTop: "8px",
+                lineHeight: "1.4",
+              }}
+            >
               Start a scan from the Alert modal to see matching stocks here.
             </p>
           </div>
         ) : (
           results.map((item, idx) => (
-            <div 
-              key={idx} 
-              className="alert-item"
-              style={styles.listItem}
-              onClick={() => handleItemClick(item)}
+            <div
+              key={idx}
+              className="alert-item-wrapper"
+              style={{
+                position: "relative",
+              }}
             >
-              <div style={styles.itemTop}>
-                <span style={styles.stockName}>{item.symbol}</span>
-                <span style={styles.rsiValue}>{Number(item.rsi).toFixed(2)}</span>
-              </div>
-              <div style={styles.itemBottom}>
-                <span>{item.timestamp || new Date().toLocaleTimeString()}</span>
-                <span>{item.segment || "NSE"}</span>
+              <Link
+                to="/dashboard"
+                state={{
+                  stock: item,
+                }}
+                style={{
+                  textDecoration: "none",
+                  color: "inherit",
+                }}
+              >
+                <div
+                  className="alert-item"
+                  style={styles.listItem}
+                  onClick={() => handleItemClick(item)}
+                >
+                  <div style={styles.itemTop}>
+                    <span style={styles.stockName}>{item.symbol}</span>
+
+                    <span style={styles.rsiValue}>
+                      {Number(item.rsi).toFixed(2)}
+                    </span>
+                  </div>
+
+                  <div style={styles.itemBottom}>
+                    <span>
+                      {item.timestamp || new Date().toLocaleTimeString()}
+                    </span>
+
+                    <span>{item.segment || "NSE"}</span>
+                  </div>
+                </div>
+              </Link>
+
+              {/* HOVER ACTIONS */}
+              <div className="hover-actions">
+                <style>{`
+.alert-item-wrapper {
+  overflow: hidden;
+}
+
+.hover-actions {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%) translateX(20px);
+  opacity: 0;
+  display: flex;
+  gap: 6px;
+  transition: all 0.2s ease;
+  pointer-events: none;
+}
+
+.alert-item-wrapper:hover .hover-actions {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+  pointer-events: auto;
+}
+`}</style>
+                <Link
+                  to="/dashboard"
+                  state={{
+                    stock: item,
+                    action: "BUY",
+                  }}
+                  style={{ textDecoration: "none" }}
+                >
+                  <button
+                    style={{
+                      background: "#10b981",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: 6,
+                      width: 34,
+                      height: 28,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    B
+                  </button>
+                </Link>
+
+                <Link
+                  to="/dashboard"
+                  state={{
+                    stock: item,
+                    action: "SELL",
+                  }}
+                  style={{ textDecoration: "none" }}
+                >
+                  <button
+                    style={{
+                      background: "#ef4444",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: 6,
+                      width: 34,
+                      height: 28,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    S
+                  </button>
+                </Link>
               </div>
             </div>
           ))

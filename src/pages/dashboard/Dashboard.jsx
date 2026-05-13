@@ -5,9 +5,14 @@ import Stepper from "./components/Stepper";
 import OrderPanel from "./components/OrderPanel";
 import SidePanel from "./components/SidePanel";
 import OrderBook from "./components/OrderBook";
+import { useLocation } from "react-router-dom";
 
 const Dashboard = () => {
-  const [stock, setStock] = useState("");
+  const location = useLocation();
+
+  const passedStock = location.state?.stock || null;
+  const passedAction = location.state?.action || null;
+  const [stock, setStock] = useState(passedStock?.symbol || "");
   const [expiry, setExpiry] = useState("");
   const [strategy, setStrategy] = useState("");
   const [preference, setPreference] = useState("");
@@ -15,8 +20,15 @@ const Dashboard = () => {
   const [orderType, setOrderType] = useState("");
   const [qty, setQty] = useState(1);
   const [validity, setValidity] = useState("DAY");
-  const [action, setAction] = useState(null);
-  const [orders, setOrders] = useState([]);
+const [action, setAction] = useState(
+  passedAction === "BUY"
+    ? "BUY_CALL"
+    : passedAction === "SELL"
+      ? "BUY_PUT"
+      : null
+);  const [orders, setOrders] = useState([]);
+
+  
 
   // Step 1 = stock selected, Step 2 = strike configured, Step 3 = order details, Step 4 = action selected
   const currentStep = (() => {
@@ -47,7 +59,7 @@ const Dashboard = () => {
     action,
     setAction,
     orders,
-    setOrders
+    setOrders,
   };
 
   return (
@@ -67,7 +79,7 @@ const Dashboard = () => {
         <OrderPanel {...orderState} />
         <SidePanel stock={stock} expiry={expiry} />
       </div>
-      
+
       <style>{`
         .x-small { font-size: 0.65rem; }
         select.input-dark {
