@@ -22,6 +22,7 @@ const SidePanel = ({ stock, expiry }) => {
     if (expiry) payload.expiry = expiry;
     console.log("[SidePanel] Emitting subscribeOptionChain:", payload);
     socket.emit("subscribeOptionChain", payload);
+    console.log("[SidePanel] Emitted subscribeOptionChain:", payload);
   };
 
   useEffect(() => {

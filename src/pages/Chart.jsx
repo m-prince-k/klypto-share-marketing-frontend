@@ -312,7 +312,7 @@ const GoldChart = () => {
 
         setIsLoading(true);
         socket.emit(EVENTS.GET_HISTORICAL_DATA, {
-            symbol: selectedSymbol,
+            symbol: "selectedSymbol",
             interval: intervalObj ? intervalObj.db : "ONE_MINUTE",
             fromDate: fromDateStr,
             toDate: new Date().toISOString(),

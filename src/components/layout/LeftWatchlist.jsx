@@ -6,87 +6,89 @@ const LeftWatchlist = ({ onClose, setSelectedCurrency, alertResult }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [stocksData, setStocksData] = useState([]);
 
-  useEffect(() => {
-    socket.emit("getMasterWatchlist");
+    useEffect(() => {
+      socket.emit("getMasterWatchlist");
 
-    /*
-    INITIAL STOCKS
-  */
-    const handleStocks = (data) => {
-      console.log("stocks event", data);
+      /*
+      INITIAL STOCKS
+    */
+      const handleStocks = (data) => {
+        console.log("stocks event", data);
 
-      const equity = (data?.data?.equity || []).map((item) => ({
-        ...item,
-        category: "EQ",
-      }));
+        const equity = (data?.data?.equity || []).map((item) => ({
+          ...item,
+          category: "EQ",
+        }));
 
-      const futures = (data?.data?.futures || []).map((item) => ({
-        ...item,
-        category: "FUT",
-      }));
+        const futures = (data?.data?.futures || []).map((item) => ({
+          ...item,
+          category: "FUT",
+        }));
 
-      const options = (data?.data?.trendingOptions || []).map((item) => ({
-        ...item,
-        category: "OPT",
-      }));
+        const options = (data?.data?.trendingOptions || []).map((item) => ({
+          ...item,
+          category: "OPT",
+        }));
 
-      const indices = (data?.data?.indices || []).map((item) => ({
-        ...item,
-        category: "IDX",
-      }));
+        const indices = (data?.data?.indices || []).map((item) => ({
+          ...item,
+          category: "IDX",
+        }));
 
-      const combined = [...indices, ...equity, ...futures, ...options];
+        const combined = [...indices, ...equity, ...futures, ...options];
 
-      setStocksData(combined);
-    };
-    socket.on("masterWatchlistResponse", handleStocks);
 
-    /*
-    SINGLE STOCK UPDATE
-    (if the backend sends single stock updates, it might be on 'stockUpdate' or 'liveTick')
-  */
-    const handleStockUpdate = (updatedStock) => {
-      // Handle potential single stock update if emitted
-      if (!updatedStock?.token) return;
+        setStocksData(combined);
+        
+      };
+      socket.on("masterWatchlistResponse", handleStocks);
 
-      setStocksData((prev) =>
-        prev.map((stock) =>
-          stock.token === updatedStock.token
-            ? { ...stock, ...updatedStock }
-            : stock,
-        ),
-      );
-    };
-    socket.on("stockUpdate", handleStockUpdate);
+      /*
+      SINGLE STOCK UPDATE
+      (if the backend sends single stock updates, it might be on 'stockUpdate' or 'liveTick')
+    */
+      const handleStockUpdate = (updatedStock) => {
+        // Handle potential single stock update if emitted
+        if (!updatedStock?.token) return;
 
-    /*
-    LIVE TICK
-  */
-    const handleLiveTick = (tick) => {
-      // console.log("liveTick", tick);
+        setStocksData((prev) =>
+          prev.map((stock) =>
+            stock.token === updatedStock.token
+              ? { ...stock, ...updatedStock }
+              : stock,
+          ),
+        );
+      };
+      socket.on("stockUpdate", handleStockUpdate);
 
-      if (!tick?.token) return;
+      /*
+      LIVE TICK
+    */
+      const handleLiveTick = (tick) => {
+        // console.log("liveTick", tick);
 
-      setStocksData((prev) =>
-        prev.map((stock) =>
-          stock.token === tick.token
-            ? {
-                ...stock,
-                ...tick,
-              }
-            : stock,
-        ),
-      );
-    };
-    socket.on("liveTick", handleLiveTick);
+        if (!tick?.token) return;
 
-    return () => {
-      // socket.disconnect(); // 🔥 Do NOT disconnect singleton socket
-      socket.off("masterWatchlistResponse", handleStocks);
-      socket.off("stockUpdate", handleStockUpdate);
-      socket.off("liveTick", handleLiveTick);
-    };
-  }, []);
+        setStocksData((prev) =>
+          prev.map((stock) =>
+            stock.token === tick.token
+              ? {
+                  ...stock,
+                  ...tick,
+                }
+              : stock,
+          ),
+        );
+      };
+      socket.on("liveTick", handleLiveTick);
+
+      return () => {
+        // socket.disconnect(); // 🔥 Do NOT disconnect singleton socket
+        socket.off("masterWatchlistResponse", handleStocks);
+        socket.off("stockUpdate", handleStockUpdate);
+        socket.off("liveTick", handleLiveTick);
+      };
+    }, []);
 
   const styles = {
     container: {

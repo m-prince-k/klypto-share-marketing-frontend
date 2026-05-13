@@ -14,21 +14,20 @@ const Dashboard = () => {
   const passedAction = location.state?.action || null;
   const [stock, setStock] = useState(passedStock?.symbol || "");
   const [expiry, setExpiry] = useState("");
-  const [strategy, setStrategy] = useState("");
-  const [preference, setPreference] = useState("");
-  const [product, setProduct] = useState("");
-  const [orderType, setOrderType] = useState("");
+  const [strategy, setStrategy] = useState("Nearest ATM");
+  const [preference, setPreference] = useState("ATM");
+  const [product, setProduct] = useState("CARRYFORWARD");
+  const [orderType, setOrderType] = useState("MARKET");
   const [qty, setQty] = useState(1);
   const [validity, setValidity] = useState("DAY");
-const [action, setAction] = useState(
-  passedAction === "BUY"
-    ? "BUY_CALL"
-    : passedAction === "SELL"
-      ? "BUY_PUT"
-      : null
-);  const [orders, setOrders] = useState([]);
-
-  
+  const [action, setAction] = useState(
+    passedAction === "BUY"
+      ? "BUY_CALL"
+      : passedAction === "SELL"
+        ? "BUY_PUT"
+        : null,
+  );
+  const [orders, setOrders] = useState([]);
 
   // Step 1 = stock selected, Step 2 = strike configured, Step 3 = order details, Step 4 = action selected
   const currentStep = (() => {
