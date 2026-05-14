@@ -20,10 +20,10 @@ export default function RSIPlot({
 
     if (indicatorSeriesRef.current?.RSI) {
       Object.values(indicatorSeriesRef.current.RSI).forEach((s) => {
-        if (s?.setData) {
+        if (s && typeof s.setData === "function") {
           try {
-            s.setData([]);
-          } catch { }
+            chart?.removeSeries(s);
+          } catch {}
         }
       });
 
@@ -214,7 +214,6 @@ export default function RSIPlot({
     setTimeout(() => {
       drawBBCloud();
     }, 0);
-
   }, [panesRef]);
 
   /* ================= DRAW BB CLOUD ================= */
@@ -288,7 +287,8 @@ export default function RSIPlot({
 
     const redraw = () => drawBBCloud();
 
-    const unsubscribeTime = paneChart.timeScale().subscribeVisibleLogicalRangeChange
+    const unsubscribeTime = paneChart.timeScale()
+      .subscribeVisibleLogicalRangeChange
       ? paneChart.timeScale().subscribeVisibleLogicalRangeChange(redraw)
       : null;
 
@@ -381,7 +381,6 @@ export default function RSIPlot({
 
     drawBBCloud();
   }, [indicatorStyle, result]);
-
 
   useEffect(() => {
     const pane = panesRef.current?.RSI;

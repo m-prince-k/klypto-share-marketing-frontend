@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import socket from "../../../services/socket";
+import SocketEvents from "../../../services/socketEvent";
 
 const SidePanel = ({ stock, expiry }) => {
   const [spotPrice, setSpotPrice] = useState(null);
@@ -10,23 +11,40 @@ const SidePanel = ({ stock, expiry }) => {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const autoRefreshRef = useRef(true);
   const prevSpotRef = useRef(null);
+  
+  const parseSymbolName = (fullName) => {
+    if (!fullName || typeof fullName !== "string") return { base: fullName, hasExpiry: false };
+    const match = fullName.match(/^([A-Z-]+)\s?(\d{1,2}[A-Z]{3}\d{2,4})\s?(.*)$/i);
+    if (match) {
+      return { base: match[1].trim(), expiry: match[2], suffix: match[3].trim(), hasExpiry: true };
+    }
+    return { base: fullName, hasExpiry: false };
+  };
 
   useEffect(() => {
     autoRefreshRef.current = autoRefresh;
   }, [autoRefresh]);
 
   console.log("stock", stock);
-
   const subscribe = () => {
-    const payload = { stock };
+    const fullName = stock?.name ?? stock;
+    const symbol = parseSymbolName(fullName).base;
+    const payload = {
+      symbol,
+      stock: symbol, // Keep stock for backward compatibility
+      exchange: stock?.segment ?? "NSE",
+    };
     if (expiry) payload.expiry = expiry;
+    
     console.log("[SidePanel] Emitting subscribeOptionChain:", payload);
-    socket.emit("subscribeOptionChain", payload);
+    socket.emit(SocketEvents.SUBSCRIBE_OPTION_CHAIN, payload);
     console.log("[SidePanel] Emitted subscribeOptionChain:", payload);
   };
 
   useEffect(() => {
     const handleUpdate = (data) => {
+            console.log("[SidePanel] optionChainUpdate received:", data);
+
       if (!autoRefreshRef.current) return;
       console.log("[SidePanel] optionChainUpdate received:", data);
 
@@ -57,7 +75,7 @@ const SidePanel = ({ stock, expiry }) => {
       }
     };
 
-    socket.on("optionChainUpdate", handleUpdate);
+    socket.on(SocketEvents.OPTION_CHAIN_UPDATE, handleUpdate);
 
     if (socket.connected) {
       subscribe();
@@ -66,9 +84,9 @@ const SidePanel = ({ stock, expiry }) => {
     }
 
     return () => {
-      socket.off("optionChainUpdate", handleUpdate);
+      socket.off(SocketEvents.OPTION_CHAIN_UPDATE, handleUpdate);
       socket.off("connect", subscribe);
-      socket.emit("unsubscribeOptionChain", { stock });
+      socket.emit("unsubscribeOptionChain", { symbol: stock?.name ?? stock });
     };
   }, [stock, expiry]);
 
@@ -106,7 +124,7 @@ const SidePanel = ({ stock, expiry }) => {
       <div className="card-custom p-0">
         <div className="p-2 d-flex justify-content-between align-items-center border-bottom border-secondary">
           <span className="small fw-bold">
-            LIVE OPTION CHAIN ({stock} {expiry ?? "NEAREST EXPIRY"})
+            LIVE OPTION CHAIN ({parseSymbolName(stock?.name ?? stock).base} {expiry ?? "NEAREST EXPIRY"})
           </span>
           <div className="d-flex align-items-center gap-2">
             <span className="x-small text-muted">Auto Refresh</span>

@@ -991,7 +991,7 @@ export let indicatorStyleDefault = {
   ATR: {
     atr: {
       visible: true,
-      color: "rgba(0, 0, 0,1)",
+      color: "rgba(255, 165, 255,1)",
       width: 2,
       lineStyle: 0,
       opacity: 100,

@@ -194,8 +194,8 @@ export default function SearchSelect({ stocks, stock, setStock, onSelect, style 
   const containerRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Find selected object by token
-  const selected = stocks.find((s) => s.token === stock);
+  // Find selected object by token (handle both object and string state)
+  const selected = stocks.find((s) => s.token === (stock?.token ?? stock));
 
   // Display the human-readable name
   const displayValue = selected?.name ?? selected?.symbol ?? "";
@@ -237,8 +237,8 @@ export default function SearchSelect({ stocks, stock, setStock, onSelect, style 
 
   const handleSelect = (stockObj) => {
     console.log("✅ SearchSelect selected:", stockObj);
-    // Store token as the key — always present, works for OPT/FUT/EQ/IDX
-    setStock(stockObj.token);
+    // Pass the whole object to state so we have access to name/symbol elsewhere
+    setStock(stockObj);
     if (onSelect) onSelect(stockObj);
     setOpen(false);
     setQuery("");
@@ -323,7 +323,7 @@ export default function SearchSelect({ stocks, stock, setStock, onSelect, style 
           ) : (
             filtered.map((s, i) => {
               const cat      = categoryColor(s.category);
-              const isActive = s.token === stock;
+              const isActive = s.token === (stock?.token ?? stock);
               return (
                 <div
                   key={s.token ?? i}

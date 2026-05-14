@@ -5,6 +5,7 @@ import useChartFunctions from "../../util/useChartFunctions";
 import { updateIndicatorFromInput } from "./IndicatorIndex";
 import React, { useEffect, useState } from "react";
 import socket from "../../services/socket";
+import { indicatorConfigDefault } from "../../util/indicatorFunctions";
 
 /* =========================
    BASE SETTINGS COMPONENT
@@ -184,30 +185,34 @@ export default function IndicatorPropertyDialog({
     marginRight: "1rem",
   };
 
-  const currentConfig = indicatorConfigs[activeBarIndicator];
+  // activeBarIndicator is now {id, type} — fall back to string for legacy compat
+  const instanceId = typeof activeBarIndicator === "object" ? activeBarIndicator.id   : activeBarIndicator;
+  const activeType  = typeof activeBarIndicator === "object" ? activeBarIndicator.type : activeBarIndicator;
+
+  const currentConfig = {
+    ...(indicatorConfigDefault[activeType] || {}),
+    ...(indicatorConfigs[instanceId] || indicatorConfigs[activeType] || {})
+  };
 
   const updateProperty = (key, value) => {
     setIndicatorConfigs((prev) => ({
       ...prev,
-      [activeBarIndicator]: {
-        ...prev[activeBarIndicator],
+      [instanceId]: {
+        ...(prev[instanceId] || prev[activeType] || {}),
         [key]: value,
       },
     }));
   };
 
   const handleBlur = (key, value) => {
-    const defaults = indicatorConfigs[activeBarIndicator] || {};
+    const defaults = indicatorConfigDefault[activeType] || indicatorConfigs[activeType] || {};
     const defaultValue = defaults[key];
-
     let val = value;
-
     if (val === "" || val === undefined || isNaN(val)) {
       val = defaultValue ?? 0;
     } else {
       val = Number(val);
     }
-
     updateProperty(key, val);
   };
 
@@ -218,10 +223,10 @@ export default function IndicatorPropertyDialog({
   const updateNestedDoubleProperty = (band, key, value) => {
     setIndicatorConfigs((prev) => ({
       ...prev,
-      [activeBarIndicator]: {
-        ...prev[activeBarIndicator],
+      [instanceId]: {
+        ...(prev[instanceId] || prev[activeType] || {}),
         [band]: {
-          ...prev[activeBarIndicator][band],
+          ...(prev[instanceId]?.[band] || prev[activeType]?.[band] || {}),
           [key]: value,
         },
       },
@@ -232,11 +237,11 @@ export default function IndicatorPropertyDialog({
      OK BUTTON
   ========================== */
   const handleIndicatorPropertyChange = async () => {
-    const config = indicatorConfigs?.[activeBarIndicator] || {};
+    const config = currentConfig;
     const { maType } = config;
 
     const payload = {
-      type: activeBarIndicator,
+      type: activeType,
       ...config,
     };
 
@@ -268,7 +273,7 @@ export default function IndicatorPropertyDialog({
       }
 
       updateIndicatorFromInput(
-        activeBarIndicator,
+        activeType,
         response,
         indicatorSeriesRef,
         latestIndicatorValuesRef,
@@ -293,7 +298,7 @@ export default function IndicatorPropertyDialog({
   const handleCancel = () => {
     setIndicatorConfigs((prev) => ({
       ...prev,
-      [activeBarIndicator]: indicatorConfigs[activeBarIndicator],
+      [activeType]: indicatorConfigs[activeType],
     }));
     setIndicatorProperty(false);
   };
@@ -303,7 +308,7 @@ export default function IndicatorPropertyDialog({
   ========================== */
 
   function renderIndicatorSetting() {
-    switch (activeBarIndicator) {
+    switch (activeType) {
       case "SMA":
       case "EMA":
         return (
@@ -2250,7 +2255,7 @@ export default function IndicatorPropertyDialog({
             letterSpacing: "-0.2px",
           }}
         >
-          {activeBarIndicator}
+          {activeType}
         </Modal.Title>
       </Modal.Header>
 

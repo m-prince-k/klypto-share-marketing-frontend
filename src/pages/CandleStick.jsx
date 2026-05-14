@@ -1,4 +1,4 @@
-// import "bootstrap/dist/css/bootstrap.min.css"; //this is for temp
+﻿// import "bootstrap/dist/css/bootstrap.min.css"; //this is for temp
 import {
   createChart,
   CandlestickSeries,
@@ -58,6 +58,7 @@ import {
 import { io } from "socket.io-client";
 import { toast } from "react-toastify";
 import useAlerts from "../util/useAlerts";
+import { Link } from "react-router-dom";
 
 export default function Candlestick() {
   const chartRef = useRef();
@@ -174,10 +175,23 @@ export default function Candlestick() {
   const seriesReadyRef = useRef(false);
   const selectedIndicatorRef = useRef(selectedIndicator);
   const ohlcvDisplayRef = useRef(null);
+  const actionButtonsRef = useRef(null);
+  // âœ… Always-current refs so persistent handlers never capture stale closures
+  const selectedCurrencyRef = useRef(selectedCurrency);
+  const intervalSecRef = useRef(TIMEFRAME_TO_SECONDS[timeframeValue] ?? 60);
   const IST_OFFSET = 19800;
+
   useEffect(() => {
     selectedIndicatorRef.current = selectedIndicator;
   }, [selectedIndicator]);
+
+  useEffect(() => {
+    selectedCurrencyRef.current = selectedCurrency;
+  }, [selectedCurrency]);
+
+  useEffect(() => {
+    intervalSecRef.current = TIMEFRAME_TO_SECONDS[timeframeValue] ?? 60;
+  }, [timeframeValue]);
 
   useEffect(() => {
     if (activeTab === "Alerts") {
@@ -185,15 +199,18 @@ export default function Candlestick() {
     }
   }, [activeTab]);
 
-  const [indicatorConfigs, setIndicatorConfigs] = useState(
-    indicatorConfigDefault,
-  );
+  const [indicatorConfigs, setIndicatorConfigs] = useState({}); // keyed by instance id
 
   const [indicatorStyle, setIndicatorStyle] = useState(indicatorStyleDefault);
+  const indicatorStyleRef = useRef(indicatorStyle);
+
+  useEffect(() => {
+    indicatorStyleRef.current = indicatorStyle;
+  }, [indicatorStyle]);
   const isUp = liveOhlcv?.close >= liveOhlcv?.open;
   const valueColor = isUp ? "text-green-500" : "text-red-500";
   const hasPaneIndicators = selectedIndicator.some((ind) =>
-    PANE_INDICATORS.has(ind),
+    PANE_INDICATORS.has(typeof ind === "object" ? ind.type : ind),
   );
 
   useEffect(() => {
@@ -207,22 +224,23 @@ export default function Candlestick() {
     let indicatorsToFetch = selectedIndicator;
 
     if (!isContextChange) {
-      // ✅ Only filter when indicator list changes
+      // âœ… Only fetch newly added instances
       indicatorsToFetch = selectedIndicator.filter(
-        (ind) => !fetchedIndicatorsRef.current.has(ind),
+        (ind) => !fetchedIndicatorsRef.current.has(ind.id),
       );
 
       if (indicatorsToFetch.length === 0) return;
     } else {
-      // 🔥 Reset on timeframe / currency change
+      // ðŸ”¥ Reset on timeframe / currency / chartType change
       fetchedIndicatorsRef.current.clear();
 
-      // Clear existing indicator chart series to prevent overlaying old data
-      selectedIndicator.forEach((indicator) => {
-        const entry = indicatorSeriesRef.current[indicator];
+      // Clear existing indicator chart series
+      selectedIndicator.forEach((ind) => {
+        const { id } = ind;
+        const entry = indicatorSeriesRef.current[id];
         if (!entry) return;
 
-        const paneKey = resolvePaneKey(indicator);
+        const paneKey = id; // each instance has its own pane key
         const pane = panesRef.current[paneKey];
         const chartToUse = pane?.chart ?? chartRef.current;
         if (!chartToUse) return;
@@ -239,8 +257,8 @@ export default function Candlestick() {
             chartToUse.removeSeries(entry);
           } catch {}
         }
-        delete indicatorSeriesRef.current[indicator];
-        delete indicatorDataRef.current[indicator];
+        delete indicatorSeriesRef.current[id];
+        delete indicatorDataRef.current[id];
       });
     }
 
@@ -253,7 +271,9 @@ export default function Candlestick() {
         setIndicatorLoading(false);
       });
 
-    indicatorsToFetch.forEach((ind) => fetchedIndicatorsRef.current.add(ind));
+    indicatorsToFetch.forEach((ind) =>
+      fetchedIndicatorsRef.current.add(ind.id),
+    );
 
     // update previous values
     prevTimeframeRef.current = timeframeValue;
@@ -291,9 +311,16 @@ export default function Candlestick() {
   };
 
   //  GET PANE INDEX
+  // Instance ids look like "RSI_1747xxx_abc12" â€” extract base type for pane check
+  const getBaseTypeFromId = (instanceId) => {
+    const match = instanceId.match(/^([A-Z_]+?)_\d/);
+    return match ? match[1] : instanceId;
+  };
+
   const getPaneIndex = (indicator) => {
-    // ❗ overlay indicators → always main pane
-    if (!PANE_INDICATORS.has(indicator)) return 0;
+    const baseType = getBaseTypeFromId(indicator);
+    // overlay indicators â†’ always main pane
+    if (!PANE_INDICATORS.has(baseType)) return 0;
 
     if (paneIndexRef.current[indicator] !== undefined) {
       return paneIndexRef.current[indicator];
@@ -327,7 +354,7 @@ export default function Candlestick() {
     return series;
   };
 
-  //  ✅ CHART SYNC ENGINE
+  //  âœ… CHART SYNC ENGINE
   function syncCharts(sourceChart, logicalRange) {
     if (!logicalRange || syncingRef.current) return;
     syncingRef.current = true;
@@ -355,11 +382,9 @@ export default function Candlestick() {
     const pane = panesRef.current[paneKey];
     if (!pane) return;
 
-    const stillUsed = Object.entries(indicatorSeriesRef.current).some(
-      ([indicatorKey, series]) => {
-        if (!series || indicatorKey.startsWith("_")) return false;
-        return resolvePaneKey(indicatorKey) === paneKey;
-      },
+    // Each instance id is its own pane key â€” just check if still in use
+    const stillUsed = Object.keys(indicatorSeriesRef.current).some(
+      (key) => key === paneKey,
     );
     if (stillUsed) return;
     try {
@@ -377,12 +402,12 @@ export default function Candlestick() {
     delete panesRef.current[paneKey];
   }
 
-  //  ✅ INDICATOR REMOVAL
-  const removeIndicator = useCallback((indicator) => {
-    const entry = indicatorSeriesRef.current[indicator];
+  //  âœ… INDICATOR REMOVAL â€” accepts instance id
+  const removeIndicator = useCallback((instanceId) => {
+    const entry = indicatorSeriesRef.current[instanceId];
     if (!entry) return;
 
-    const paneKey = resolvePaneKey(indicator);
+    const paneKey = instanceId; // each instance has its own pane key
     const pane = panesRef.current[paneKey];
     const chart = pane?.chart ?? chartRef.current;
     if (!chart) return;
@@ -392,7 +417,6 @@ export default function Candlestick() {
       Object.values(entry).forEach((series) => {
         if (!series) return;
         if (typeof series.setData !== "function") return;
-
         try {
           chart.removeSeries(series);
         } catch {}
@@ -404,32 +428,14 @@ export default function Candlestick() {
       } catch {}
     }
 
-    delete indicatorSeriesRef.current[indicator];
-    delete latestIndicatorValuesRef.current[indicator];
-    fetchedIndicatorsRef.current.delete(indicator);
-
-    /* ✅ ADD THIS BLOCK (IMPORTANT) */
-    setIndicatorConfigs((prev) => {
-      const updated = { ...prev };
-      delete updated[indicator]; // remove old config
-      return {
-        ...updated,
-        [indicator]: indicatorConfigDefault[indicator] || {},
-      };
-    });
-
-    setIndicatorStyle((prev) => {
-      const updated = { ...prev };
-      delete updated[indicator];
-      return {
-        ...updated,
-        [indicator]: indicatorStyleDefault[indicator] || {},
-      };
-    });
+    delete indicatorSeriesRef.current[instanceId];
+    delete latestIndicatorValuesRef.current[instanceId];
+    fetchedIndicatorsRef.current.delete(instanceId);
+    delete paneIndexRef.current[instanceId];
 
     cleanupPane(paneKey);
 
-    setSelectedIndicator((prev) => prev.filter((i) => i !== indicator));
+    setSelectedIndicator((prev) => prev.filter((i) => i.id !== instanceId));
   }, []);
   // ----------Main chart------------
   useEffect(() => {
@@ -448,43 +454,18 @@ export default function Candlestick() {
     };
   }, []); // Run only once
 
-  const toggleIndicator = useCallback((indicator) => {
-    setSelectedIndicator((prev) => {
-      const alreadySelected = prev.includes(indicator);
+  // kept for compatibility â€” ListingModal now directly calls setSelectedIndicator
+  const toggleIndicator = useCallback((type) => {
+    const id = `${type}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const newInst = { id, type };
 
-      if (alreadySelected) {
-        const entry = indicatorSeriesRef.current[indicator];
-        const paneKey = resolvePaneKey(indicator);
-        const pane = panesRef.current[paneKey];
-        const chart = pane?.chart ?? chartRef.current;
+    // Initialize instance-specific config from defaults
+    setIndicatorConfigs((prev) => ({
+      ...prev,
+      [id]: { ...indicatorConfigDefault[type] },
+    }));
 
-        if (entry && chart) {
-          const seriesList = Array.isArray(entry)
-            ? entry
-            : typeof entry === "object"
-              ? Object.values(entry)
-              : [entry];
-
-          seriesList.forEach((series) => {
-            try {
-              chart.removeSeries(series);
-            } catch {}
-          });
-        }
-
-        delete indicatorSeriesRef.current[indicator];
-        delete latestIndicatorValuesRef.current[indicator];
-        fetchedIndicatorsRef.current.delete(indicator);
-
-        const updated = prev.filter((i) => i !== indicator);
-
-        setTimeout(() => cleanupPane(paneKey), 0);
-
-        return updated;
-      }
-
-      return [...prev, indicator];
-    });
+    setSelectedIndicator((prev) => [...prev, newInst]);
   }, []);
 
   // RENDER INDICATOR VALUE
@@ -615,20 +596,57 @@ export default function Candlestick() {
   };
 
   const renderIndicators = () => {
-    return selectedIndicator.map((indicator) => {
-      const Component = indicatorComponents[indicator];
+    return selectedIndicator.map((ind) => {
+      const { id, type } = ind;
+      const Component = indicatorComponents[type];
       if (!Component) return null;
 
-      const data = indicatorDataRef.current?.[indicator];
+      const data = indicatorDataRef.current?.[id];
+
+      // Scoped proxy: plot components write indicatorSeriesRef.current[type]
+      // but we remap it to indicatorSeriesRef.current[id] so each instance is independent
+      const scopedSeriesRef = {
+        current: new Proxy(indicatorSeriesRef.current, {
+          get(target, prop) {
+            if (prop === type) return target[id];
+            return target[prop];
+          },
+          set(target, prop, value) {
+            if (prop === type) {
+              target[id] = value;
+            } else {
+              target[prop] = value;
+            }
+            return true;
+          },
+        }),
+      };
+
+      // Scoped indicatorStyle: plot components read indicatorStyle[type] (e.g. indicatorStyle.RSI)
+      // but we remap to the instance's id-keyed style so each instance is visually independent
+      const scopedIndicatorStyle = new Proxy(indicatorStyle, {
+        get(target, prop) {
+          if (prop === type) {
+            // instance-specific style takes priority; fall back to type default
+            return target[id] ?? target[type];
+          }
+          return target[prop];
+        },
+      });
+
+      // Scoped addSeries: routes pane creation under the instance id
+      const scopedAddSeries = (indicatorKey, SeriesType, options = {}) => {
+        return addSeries(id, SeriesType, options);
+      };
 
       return (
         <Component
-          key={indicator}
+          key={id}
           result={data?.result}
           rows={data?.rows}
-          indicatorStyle={indicatorStyle}
-          indicatorSeriesRef={indicatorSeriesRef}
-          addSeries={addSeries}
+          indicatorStyle={scopedIndicatorStyle}
+          indicatorSeriesRef={scopedSeriesRef}
+          addSeries={scopedAddSeries}
           containerRef={containerRef.current}
           chart={chartRef.current}
           container={containerRef}
@@ -781,7 +799,7 @@ export default function Candlestick() {
         // exchange: selectedCurrency?.segment || "NSE",
       };
 
-      console.log("📤 getManualHistoricalData Payload:", historicalPayload);
+      console.log("ðŸ“¤ getManualHistoricalData Payload:", historicalPayload);
 
       socket.emit("getManualHistoricalData", historicalPayload);
     };
@@ -793,11 +811,11 @@ export default function Candlestick() {
     }
 
     socket.on("connect", () => {
-      console.log("✅ SOCKET CONNECTED", socket);
+      console.log("âœ… SOCKET CONNECTED", socket);
       requestHistoricalData();
     });
 
-    // ✅ Historical data response — replaces loadChart / fetchDataByCurrency
+    // âœ… Historical data response â€” replaces loadChart / fetchDataByCurrency
     socket.on("historicalDataResponse", (response) => {
       console.log("HISTORICAL DATA RESPONSE", response?.data);
 
@@ -825,7 +843,7 @@ export default function Candlestick() {
       //     close: parseFloat(d.close),
       //     volume: parseFloat(d.volume || 0),
       //   }))
-      //   .sort((a, b) => a.time - b.time); // ✅ Crucial sort like in Chart.jsx
+      //   .sort((a, b) => a.time - b.time); // âœ… Crucial sort like in Chart.jsx
 
       const raw = response?.data || [];
       const symbolFromResponse = raw[0]?.symbol;
@@ -840,7 +858,7 @@ export default function Candlestick() {
           volume: parseFloat(d.volume || 0),
         }))
         .sort((a, b) => a.time - b.time)
-        // ✅ Remove duplicate timestamps — keep last occurrence
+        // âœ… Remove duplicate timestamps â€” keep last occurrence
         .filter(
           (d, idx, arr) =>
             idx === arr.length - 1 || d.time !== arr[idx + 1].time,
@@ -850,7 +868,7 @@ export default function Candlestick() {
 
       if (!Array.isArray(data) || !data.length) return;
 
-      // 🔥 Update detailsList with fresh data for the specific stock in response
+      // ðŸ”¥ Update detailsList with fresh data for the specific stock in response
       const lastPoint = data[data.length - 1];
       const aggregateHigh = Math.max(...data.map((d) => d.high));
       const aggregateLow = Math.min(...data.map((d) => d.low));
@@ -872,7 +890,7 @@ export default function Candlestick() {
         return newList;
       });
 
-      // 📈 ONLY update chart if the symbol matches the currently selected currency
+      // ONLY update chart if the symbol matches the currently selected currency
       if (
         symbolFromResponse !== selectedCurrency.name &&
         symbolFromResponse !== selectedCurrency.symbol
@@ -968,7 +986,7 @@ export default function Candlestick() {
 
       currentCandleRef.current = data[data.length - 1];
 
-      // ✅ Populate OHLCV display on load
+      // âœ… Populate OHLCV display on load
       setTimeout(() => {
         const last = data[data.length - 1];
         if (last && ohlcvDisplayRef.current) {
@@ -987,10 +1005,18 @@ export default function Candlestick() {
             (s) => (s.style.color = color),
           );
         }
+        if (last && actionButtonsRef.current) {
+          const buyPrice = actionButtonsRef.current.querySelector("[data-buy-price]");
+          const sellPrice = actionButtonsRef.current.querySelector("[data-sell-price]");
+          const formattedClose = Number(last.close).toFixed(2);
+          if (buyPrice) buyPrice.textContent = formattedClose;
+          if (sellPrice) sellPrice.textContent = formattedClose;
+        }
+
         chartRef.current?.timeScale().fitContent();
       }, 150);
     });
-  
+
     socket.on("historicalDataError", (err) => {
       toast.error(err.message || "Failed to fetch historical data");
       console.error("❌ Historical data error:", err);
@@ -1001,39 +1027,27 @@ export default function Candlestick() {
       const ticks = Array.isArray(tickOrArray) ? tickOrArray : [tickOrArray];
 
       ticks.forEach((tick) => {
-        // console.log(
-        //   "📈 [Chart Live Tick] Received:",
-        //   tick?.symbol || tick?.name,
-        //   "Target:",
-        //   selectedCurrency?.name,
-        // );
-        // console.log("RAW TICK:", tick);
-        // console.log("SELECTED:", selectedCurrency);
         const activeSymbol = normalize(selectedCurrency?.name);
+        const tickSymbol = normalize(tick.symbol);
 
-        if (normalize(tick.symbol) !== activeSymbol) return;
+        if (tickSymbol !== activeSymbol) return;
         if (!seriesRef.current) return;
 
         /* NORMALIZE TIME */
-        let tickTime = Number(tick?.data?.time);
+        let rawTickTime = tick?.data?.time;
+        let tickTime = Number(rawTickTime);
 
-        // ISO string support
         if (!Number.isFinite(tickTime)) {
-          tickTime = Math.floor(new Date(tick?.data?.time).getTime() / 1000);
+          tickTime = Math.floor(new Date(rawTickTime).getTime() / 1000);
         }
-
-        // milliseconds -> seconds
-        if (tickTime > 10000000000) {
-          tickTime = Math.floor(tickTime / 1000);
-        }
-
+        if (tickTime > 10000000000) tickTime = Math.floor(tickTime / 1000);
         if (!Number.isFinite(tickTime)) return;
 
-        // ✅ Synchronize with historical data IST offset
-        tickTime += IST_OFFSET;
+        // Apply IST Offset if needed (19800s = 5.5h)
+        const adjustedTime = tickTime + IST_OFFSET;
+        const normalizedTime =
+          Math.floor(adjustedTime / intervalSec) * intervalSec;
 
-        /* NORMALIZE CANDLE TIME */
-        const normalizedTime = Math.floor(tickTime / intervalSec) * intervalSec;
         if (!Number.isFinite(normalizedTime) || normalizedTime <= 0) return;
 
         /* PRICE */
@@ -1043,8 +1057,6 @@ export default function Candlestick() {
         if (!Number.isFinite(price)) return;
 
         let updatedBar;
-
-        /* NEW CANDLE or UPDATE EXISTING */
         if (
           !currentCandleRef.current ||
           normalizedTime > currentCandleRef.current.time
@@ -1069,24 +1081,22 @@ export default function Candlestick() {
           };
         }
 
-        /* SAVE AND UPDATE */
+        // console.log(
+        //   `[LiveTick] RawTime: ${rawTickTime}, Normalized: ${normalizedTime} (${new Date(normalizedTime * 1000).toLocaleTimeString()})`,
+        // );
+
         currentCandleRef.current = updatedBar;
         const existingIndex = candlesRef.current.findIndex(
           (c) => c.time === updatedBar.time,
         );
-
-        if (existingIndex >= 0) {
-          candlesRef.current[existingIndex] = updatedBar;
-        } else {
-          candlesRef.current.push(updatedBar);
-        }
+        if (existingIndex >= 0) candlesRef.current[existingIndex] = updatedBar;
+        else candlesRef.current.push(updatedBar);
         lastCandleTimeRef.current = normalizedTime;
 
         try {
           seriesRef.current.update(updatedBar);
         } catch (e) {
-          console.warn("⚠️ series.update failed:", e.message);
-          return;
+          console.warn("[LiveTick] Series update failed:", e.message);
         }
 
         /* UPDATE OHLC DISPLAY */
@@ -1098,7 +1108,6 @@ export default function Candlestick() {
           const h = el.querySelector("[data-h]");
           const l = el.querySelector("[data-l]");
           const c = el.querySelector("[data-c]");
-
           if (o) o.textContent = Number(updatedBar.open).toFixed(2);
           if (h) h.textContent = Number(updatedBar.high).toFixed(2);
           if (l) l.textContent = Number(updatedBar.low).toFixed(2);
@@ -1106,67 +1115,115 @@ export default function Candlestick() {
           if (c) c.style.color = color;
         }
 
-        /* ✅ LIVE INDICATORS — emit on every qualifying tick */
+        if (actionButtonsRef.current) {
+          const buyPrice = actionButtonsRef.current.querySelector("[data-buy-price]");
+          const sellPrice = actionButtonsRef.current.querySelector("[data-sell-price]");
+          const formattedClose = Number(updatedBar.close).toFixed(2);
+          if (buyPrice) buyPrice.textContent = formattedClose;
+          if (sellPrice) sellPrice.textContent = formattedClose;
+        }
+
+        /* LIVE INDICATORS — emit once per type per tick */
         const activeIndicators = selectedIndicatorRef.current;
         if (activeIndicators?.length > 0) {
+          const sentTypes = new Set();
           activeIndicators.forEach((ind) => {
-            const indicatorPayload = {
+            const indType = typeof ind === "object" ? ind.type : ind;
+            if (sentTypes.has(indType)) return;
+            sentTypes.add(indType);
+            socket.emit("getLiveIndicatorUpdate", {
               symbol: selectedCurrency?.name,
               interval: timeframeValue,
-              type: ind,
+              type: indType,
+              
               exchange: selectedCurrency?.segment,
-            };
-            console.log("📤 [Tick] getLiveIndicatorUpdate:", indicatorPayload);
-            socket.emit("getLiveIndicatorUpdate", indicatorPayload);
+            });
           });
         }
       });
     };
 
-    socket.on("liveTick", handleChartLiveTick);
-    socket.on("liveticks", handleChartLiveTick);
-
     const handleChartLiveIndicator = (payload) => {
-      console.log("📈 [Live Indicator Response] Received:", payload);
       if (!payload?.success || !payload?.type) return;
 
+      console.log(`[LiveIndicator] Payload:`, payload);
+
       const indicatorType = payload.type;
-      const seriesGroup = indicatorSeriesRef.current?.[indicatorType];
-      if (!seriesGroup) return;
       const dataArray = payload.data;
       if (!Array.isArray(dataArray) || dataArray.length === 0) return;
       const lastPoint = dataArray[dataArray.length - 1];
       if (!lastPoint) return;
-      const pointTime =
-        currentCandleRef.current?.time ?? Number(lastPoint.time);
-      Object.entries(seriesGroup).forEach(([lineName, series]) => {
-        if (lineName.startsWith("_")) return;
-        if (!series || typeof series.update !== "function") return;
-        const value =
-          lastPoint[lineName] ??
-          lastPoint[lineName + "Band"] ?? // handle bbUpper vs bbUpperBand
-          lastPoint.value ??
-          lastPoint[indicatorType.toLowerCase()];
-        if (value == null || !Number.isFinite(Number(value))) return;
-        try {
-          series.update({ time: pointTime, value: Number(value) });
-        } catch (e) {
-          console.warn(
-            `⚠️ Indicator update failed [${indicatorType}][${lineName}]:`,
-            e.message,
-          );
-        }
+
+      const pointTime = Number(
+        currentCandleRef.current?.time ?? lastPoint.time,
+      );
+      if (isNaN(pointTime)) return;
+
+      selectedIndicatorRef.current.forEach((inst) => {
+        const instType = typeof inst === "object" ? inst.type : inst;
+        const instId = typeof inst === "object" ? inst.id : inst;
+        if (instType !== indicatorType) return;
+        const seriesGroup = indicatorSeriesRef.current?.[instId];
+        if (!seriesGroup) return;
+
+        const staticKeys = [
+          "upper",
+          "middle",
+          "lower",
+          "overboughtFill",
+          "oversoldFill",
+          "bandBackground",
+        ];
+
+        Object.entries(seriesGroup).forEach(([lineName, series]) => {
+          if (lineName.startsWith("_")) return;
+          if (!series || typeof series.update !== "function") return;
+
+          let value;
+          if (staticKeys.includes(lineName)) {
+            const style =
+              indicatorStyleRef.current?.[instId] ||
+              indicatorStyleRef.current?.[instType];
+            if (
+              lineName === "upper" ||
+              lineName === "overboughtFill" ||
+              lineName === "bandBackground"
+            ) {
+              value = style?.upper?.value ?? 70;
+            } else if (lineName === "middle") {
+              value = style?.middle?.value ?? 50;
+            } else if (lineName === "lower" || lineName === "oversoldFill") {
+              value = style?.lower?.value ?? 30;
+            }
+          } else {
+            value =
+              lastPoint[lineName] ??
+              lastPoint[lineName + "Band"] ??
+              lastPoint.value ??
+              lastPoint[indicatorType.toLowerCase()];
+          }
+
+          if (value == null || !Number.isFinite(Number(value))) return;
+
+          try {
+            series.update({ time: pointTime, value: Number(value) });
+          } catch (e) {
+            // Silent catch for 'oldest data' errors to prevent console spam when backend lags
+            if (!e.message.includes("oldest data")) {
+              console.warn(
+                `Indicator update failed [${indicatorType}][${instId}]:`,
+                e.message,
+              );
+            }
+          }
+        });
       });
     };
-    socket.on("liveIndicatorResponse", handleChartLiveIndicator);
-    // ✅ Remove only the previous chart handler, not all listeners
-    // if (chartIndicatorHandlerRef.current) {
-    //   socket.off("liveIndicatorResponse", chartIndicatorHandlerRef.current);
-    // }
-    // chartIndicatorHandlerRef.current = handleChartLiveIndicator;
-    // socket.on("liveIndicatorResponse", handleChartLiveIndicator);
 
-    // socket.on("disconnect", () => console.log("❌ SOCKET DISCONNECTED"));
+    socket.on("liveTick", handleChartLiveTick);
+    socket.on("liveticks", handleChartLiveTick);
+    socket.on("liveIndicatorResponse", handleChartLiveIndicator);
+
     socket.on("connect_error", (err) =>
       console.log("❌ SOCKET ERROR:", err.message),
     );
@@ -1177,31 +1234,14 @@ export default function Candlestick() {
     return () => {
       isMounted = false;
       console.log("🧹 SOCKET CLEANUP");
-      socket.off("connect");
-      socket.off("historicalDataResponse");
-      socket.off("historicalDataError");
       socket.off("liveTick", handleChartLiveTick);
       socket.off("liveticks", handleChartLiveTick);
       socket.off("liveIndicatorResponse", handleChartLiveIndicator);
       socket.off("disconnect");
       socket.off("connect_error");
       socketRef.current = null;
-
-      // isMounted = false;
-      // socket.off("connect");
-      // socket.off("historicalDataResponse");
-      // socket.off("historicalDataError");
-      // socket.off("liveTick", handleChartLiveTick);
-      // // ✅ Remove only this specific handler, not all liveIndicatorResponse listeners
-      // if (chartIndicatorHandlerRef.current) {
-      //   socket.off("liveIndicatorResponse", chartIndicatorHandlerRef.current);
-      //   chartIndicatorHandlerRef.current = null;
-      // }
-      // socket.off("disconnect");
-      // socket.off("connect_error");
-      // socketRef.current = null;
     };
-  }, [selectedCurrency?.name, timeframeValue, chartType, fromDate, toDate]); // ✅ chartType added
+  }, [selectedCurrency?.name, timeframeValue, chartType, fromDate, toDate]);
 
   const zoomCharts = (delta) => {
     const charts = [
@@ -1542,34 +1582,38 @@ export default function Candlestick() {
                       </div>
                     </div>
 
-                    <div style={{ display: "flex", gap: "10px" }}>
-                      <button
-                        style={{
-                          padding: "10px 20px",
-                          border: "1px solid green",
-                          background: "white",
-                          color: "green",
-                          borderRadius: "6px",
-                          cursor: "pointer",
-                          fontWeight: "600",
-                        }}
-                      >
-                        Buy
-                      </button>
+                    <div style={{ display: "flex", gap: "10px" }} ref={actionButtonsRef}>
+                      <Link to="/dashboard" state={{ stock: selectedCurrency?.name, action: "BUY" }} style={{ textDecoration: 'none' }}>
+                        <button
+                          style={{
+                            padding: "10px 20px",
+                            border: "1px solid green",
+                            background: "rgba(16, 185, 129, 0.15)",
+                            color: "green",
+                            borderRadius: "6px",
+                            cursor: "pointer",
+                            fontWeight: "600",
+                          }}
+                        >
+                          Buy @<span data-buy-price>--</span>
+                        </button>
+                      </Link>
 
-                      <button
-                        style={{
-                          padding: "10px 20px",
-                          border: "1px solid red",
-                          background: "white",
-                          color: "red",
-                          borderRadius: "6px",
-                          cursor: "pointer",
-                          fontWeight: "600",
-                        }}
-                      >
-                        Sell
-                      </button>
+                      <Link to="/dashboard" state={{ stock: selectedCurrency?.name, action: "SELL" }} style={{ textDecoration: 'none' }}>
+                        <button
+                          style={{
+                            padding: "10px 20px",
+                            border: "1px solid red",
+                            background: "rgba(239, 68, 68, 0.15)",
+                            color: "red",
+                            borderRadius: "6px",
+                            cursor: "pointer",
+                            fontWeight: "600",
+                          }}
+                        >
+                          Sell @<span data-sell-price>--</span>
+                        </button>
+                      </Link>
                     </div>
                   </div>
 
@@ -1602,15 +1646,12 @@ export default function Candlestick() {
   `}</style>
 
                       {selectedIndicator &&
-                        selectedIndicator.map((indicator, index) => {
-                          const normalizedType = indicator.replace(
-                            /[\s/%]+/g,
-                            "",
-                          );
-                          const value = liveIndicatorData[normalizedType];
+                        selectedIndicator.map((ind) => {
+                          const { id, type } = ind;
+                          const value = liveIndicatorData[id];
                           return (
                             <div
-                              key={index}
+                              key={id}
                               style={{
                                 display: "flex",
                                 alignItems: "center",
@@ -1640,15 +1681,20 @@ export default function Candlestick() {
                                     fontWeight: 500,
                                   }}
                                 >
-                                  {indicator}
+                                  {type}
                                 </span>
                                 {" : "}
-                                {indicatorConfigs?.[normalizedType]?.length ??
-                                  ""}{" "}
-                                {indicatorConfigs?.[normalizedType]?.source ??
-                                  ""}
+                                {(() => {
+                                  const cfg = {
+                                    ...(indicatorConfigDefault[type] || {}),
+                                    ...(indicatorConfigs?.[id] || {}),
+                                  };
+                                  const len = cfg.length ?? cfg.baseLen ?? "";
+                                  const src = cfg.source ?? "";
+                                  return `${len}${src ? " " + src : ""}`;
+                                })()}
                                 <span style={{ display: "flex", gap: 6 }}>
-                                  {renderValue(normalizedType, value)}
+                                  {renderValue(type, value)}
                                 </span>
                               </span>
 
@@ -1663,18 +1709,16 @@ export default function Candlestick() {
                                 <button
                                   className="ind-btn"
                                   title={
-                                    indicatorVisibility[normalizedType]
-                                      ? "Hide Indicator"
-                                      : "Show Indicator"
+                                    indicatorVisibility[id] === false
+                                      ? "Show Indicator"
+                                      : "Hide Indicator"
                                   }
-                                  onClick={() =>
-                                    toggleIndicatorVisibility(normalizedType)
-                                  }
+                                  onClick={() => toggleIndicatorVisibility(id)}
                                 >
-                                  {indicatorVisibility[normalizedType] ? (
-                                    <IoEyeOutline size={15} />
-                                  ) : (
+                                  {indicatorVisibility[id] === false ? (
                                     <IoEyeOffOutline size={15} />
+                                  ) : (
+                                    <IoEyeOutline size={15} />
                                   )}
                                 </button>
 
@@ -1682,7 +1726,7 @@ export default function Candlestick() {
                                   className="ind-btn"
                                   title="Indicator Settings"
                                   onClick={() => {
-                                    setActiveBarIndicator(indicator);
+                                    setActiveBarIndicator({ id, type });
                                     setIndicatorProperty((prev) => !prev);
                                   }}
                                 >
@@ -1693,7 +1737,7 @@ export default function Candlestick() {
                                   className="ind-btn"
                                   title="Source Code"
                                   onClick={() => {
-                                    setActiveSourceIndicator(indicator);
+                                    setActiveSourceIndicator(type);
                                     setShowSourcePanel(true);
                                   }}
                                 >
@@ -1703,9 +1747,7 @@ export default function Candlestick() {
                                 <button
                                   className="ind-btn"
                                   title="Remove"
-                                  onClick={() =>
-                                    removeIndicator(normalizedType)
-                                  }
+                                  onClick={() => removeIndicator(id)}
                                 >
                                   <IoCloseSharp size={15} />
                                 </button>

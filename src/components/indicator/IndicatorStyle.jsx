@@ -9,9 +9,13 @@ export default function IndicatorStyle({
   activeBarIndicator,
   indicatorConfigs,
 }) {
-  const normalizedType = activeBarIndicator.replace(/[\s/%]+/g, "");
-  const selectedStyle = indicatorStyle?.[normalizedType];
-  const config = indicatorConfigs?.[normalizedType] || {};
+  // activeBarIndicator is now {id, type} â€” fall back to string for legacy compat
+  const instanceId = typeof activeBarIndicator === "object" ? activeBarIndicator.id   : activeBarIndicator;
+  const normalizedType = typeof activeBarIndicator === "object" ? activeBarIndicator.type : activeBarIndicator.replace(/[\s/%]+/g, "");
+
+  // Read style by instance id (so two RSIs are independent); fall back to type key
+  const selectedStyle = indicatorStyle?.[instanceId] ?? indicatorStyle?.[normalizedType];
+  const config = indicatorConfigs?.[instanceId] || indicatorConfigs?.[normalizedType] || {};
   const { maType, maLength } = config;
   const rows = getRowsByIndicator(normalizedType, maType, indicatorConfigs);
 
@@ -21,7 +25,7 @@ export default function IndicatorStyle({
   /* ================= UPDATE FUNCTION ================= */
   const update = (section, key, value) => {
     setIndicatorStyle((prev) => {
-      const indicator = prev[normalizedType] || {};
+      const indicator = prev[instanceId] ?? prev[normalizedType] ?? {};
 
       // ---------------- HISTOGRAM / VOLUME / AWO / AO PALETTE ----------------
       if (
@@ -38,15 +42,15 @@ export default function IndicatorStyle({
           ].includes(key)) ||
         (section === "volumeBars" && ["up", "down"].includes(key)) ||
         (section === "awoBars" && ["up", "down"].includes(key)) ||
-        // ✅ AO oscillator palette
+        // âœ… AO oscillator palette
         (section === "oscillator" && ["up", "down"].includes(key)) ||
-        // ✅ AO fill palette
+        // âœ… AO fill palette
         (section === "oscillatorFill" &&
           ["topFillColor1", "topFillColor2"].includes(key))
       ) {
         return {
           ...prev,
-          [normalizedType]: {
+          [instanceId]: {
             ...indicator,
             [section]: {
               ...indicator[section],
@@ -62,7 +66,7 @@ export default function IndicatorStyle({
       // ---------------- NORMAL STYLE UPDATE ----------------
       return {
         ...prev,
-        [normalizedType]: {
+        [instanceId]: {
           ...indicator,
           [section]: {
             ...indicator?.[section],
@@ -95,10 +99,10 @@ export default function IndicatorStyle({
         selectedStyle?.volumeBars?.palette?.[row.key]) ||
       (row.parent === "awoBars" &&
         selectedStyle?.awoBars?.palette?.[row.key]) ||
-      // ✅ AO oscillator palette preview
+      // âœ… AO oscillator palette preview
       (row.parent === "oscillator" &&
         selectedStyle?.oscillator?.palette?.[row.key]) ||
-      // ✅ AO fill palette preview
+      // âœ… AO fill palette preview
       (row.parent === "oscillatorFill" &&
         selectedStyle?.oscillatorFill?.palette?.[row.key])
     ) {

@@ -482,16 +482,34 @@ export const ListingModal = ({
                 <Spinner />
               ) : filteredIndicators.length > 0 ? (
                 <ListGroup variant="flush">
-                  {filteredIndicators.map((item, index) => (
-                    <ListGroup.Item key={index}>
-                      <Form.Check
-                        type="checkbox"
-                        label={`${item.label} -- ${item.slug}`}
-                        checked={selectedIndicator.includes(item.slug)}
-                        onChange={() => toggleIndicator(item.slug)}
-                      />
-                    </ListGroup.Item>
-                  ))}
+                  {filteredIndicators.map((item, index) => {
+                    return (
+                      <ListGroup.Item
+                        key={index}
+                        action
+                        onClick={() => {
+                          const newInst = {
+                            id: `${item.slug}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                            type: item.slug,
+                          };
+                          setSelectedIndicator((prev) => [...prev, newInst]);
+                          onClose();
+                        }}
+                        style={{
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "10px 14px",
+                        }}
+                      >
+                        <div>
+                          <span style={{ fontWeight: 500, fontSize: 13 }}>{item.label}</span>
+                          <span style={{ marginLeft: 8, fontSize: 11, color: "#888" }}>{item.slug}</span>
+                        </div>
+                      </ListGroup.Item>
+                    );
+                  })}
                 </ListGroup>
               ) : (
                 <p className="text-muted">No Data found</p>

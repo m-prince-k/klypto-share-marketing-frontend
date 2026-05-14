@@ -6,6 +6,7 @@ const SocketEvents = {
   GET_RSI_SCANNER: "getRsiScanner",
   SET_RSI_ALERT: "setRsiAlert",
   GET_ALL_STOCKS: "getAllStocks",
+  SUBSCRIBE_OPTION_CHAIN: "subscribeOptionChain",
 
   // --- OUTPUT EVENTS (Server to Client) ---
   HISTORICAL_DATA_RESPONSE: "historicalDataResponse",
@@ -22,6 +23,7 @@ const SocketEvents = {
   STOCKS_LIST: "stocks",
   STOCK_UPDATE: "stockUpdate",
   LIVE_TICK: "liveTick",
+  OPTION_CHAIN_UPDATE: "optionChainUpdate",
 
   GOLD_UPDATE: "goldUpdate",
 };

@@ -22,18 +22,21 @@ export default function useChartFunctions({
     if (!selectedIndicator?.length) return;
 
     await Promise.all(
-      selectedIndicator.map(async (indicator) => {
+      selectedIndicator.map(async (indItem) => {
+        // Support both {id, type} objects and legacy plain strings
+        const id   = typeof indItem === "object" ? indItem.id   : indItem;
+        const type = typeof indItem === "object" ? indItem.type : indItem;
         try {
           const result = await fetchDataForIndicators(
             candlesRef.current,
             selectedCurrency,
-            indicator,
+            type,
             timeframeValue,
             fromDate,
             toDate,
             socketRef,
           );
-          processIndicatorResponse(indicator, result);
+          processIndicatorResponse(id, type, result);
         } catch (error) {
           console.log(error, "Indicator loading error");
         }
@@ -41,104 +44,62 @@ export default function useChartFunctions({
     );
   }
 
-  function processIndicatorResponse(indicator, result) {
+  // id = unique instance key, type = base indicator type (e.g. "RSI", "SMA")
+  function processIndicatorResponse(id, type, result) {
     if (!result) return;
 
-    const config = indicatorConfigs?.[indicator] || {};
+    const config = indicatorConfigs?.[id] || indicatorConfigs?.[type] || {};
     const { maType } = config;
-    const rows = getRowsByIndicator(indicator, maType, indicatorConfigs);
+    const rows = getRowsByIndicator(type, maType, indicatorConfigs);
 
-    switch (indicator) {
+    switch (type) {
       case "RSI": {
         const rsiData = result?.data?.rsi ?? [];
         const smoothingMA = result?.data?.smoothingMA ?? [];
-        const bbUpperData =
-          result?.data?.bbUpperBand ?? result?.data?.bbUpper ?? [];
-        const bbLowerData =
-          result?.data?.bbLowerBand ?? result?.data?.bbLower ?? [];
-
-        indicatorDataRef.current.RSI = {
-          result: {
-            ...result,
-            data: {
-              ...result.data,
-              bbUpper: bbUpperData,
-              bbLower: bbLowerData,
-            },
-          },
+        const bbUpperData = result?.data?.bbUpperBand ?? result?.data?.bbUpper ?? [];
+        const bbLowerData = result?.data?.bbLowerBand ?? result?.data?.bbLower ?? [];
+        indicatorDataRef.current[id] = {
+          result: { ...result, data: { ...result.data, bbUpper: bbUpperData, bbLower: bbLowerData } },
           rows,
         };
-
-        latestIndicatorValuesRef.current.RSI = {
+        latestIndicatorValuesRef.current[id] = {
           rsi: rsiData[rsiData.length - 1]?.value,
           smoothingMA: smoothingMA[smoothingMA.length - 1]?.value,
           bbUpper: bbUpperData[bbUpperData.length - 1]?.value,
           bbLower: bbLowerData[bbLowerData.length - 1]?.value,
         };
-
         break;
       }
       case "BBW": {
         const bbwData = result?.data?.bbw ?? [];
         const highestData = result?.data?.highest ?? [];
         const lowestData = result?.data?.lowest ?? [];
-
-        indicatorDataRef.current.BBW = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.BBW = {
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
           bbw: bbwData[bbwData.length - 1]?.value ?? null,
-
-          highest:
-            highestData.length > 0
-              ? highestData[highestData.length - 1]?.value
-              : null,
-
-          lowest:
-            lowestData.length > 0
-              ? lowestData[lowestData.length - 1]?.value
-              : null,
+          highest: highestData.length > 0 ? highestData[highestData.length - 1]?.value : null,
+          lowest: lowestData.length > 0 ? lowestData[lowestData.length - 1]?.value : null,
         };
-
         break;
       }
       case "MACD": {
         const macdData = result?.data?.macd ?? [];
         const signalData = result?.data?.signal ?? [];
         const histogramData = result?.data?.histogram ?? [];
-
-        indicatorDataRef.current.MACD = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.MACD = {
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
           macd: macdData[macdData.length - 1]?.value ?? null,
-
           signal: signalData[signalData.length - 1]?.value ?? null,
-
           histogram: histogramData[histogramData.length - 1]?.value ?? null,
         };
-
         break;
       }
       case "BBPERB": {
         const percentBData = result?.data?.percentB ?? [];
-
-        indicatorSeriesRef.current[indicator] = {
-          result,
-          rows,
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
+          percentB: percentBData.length > 0 ? percentBData[percentBData.length - 1]?.value : null,
         };
-
-        latestIndicatorValuesRef.current[indicator] = {
-          percentB:
-            percentBData.length > 0
-              ? percentBData[percentBData.length - 1]?.value
-              : null,
-        };
-
         break;
       }
       case "VWAP": {
@@ -149,13 +110,8 @@ export default function useChartFunctions({
         const lower2Data = result?.data?.lower2 ?? [];
         const upper3Data = result?.data?.upper3 ?? [];
         const lower3Data = result?.data?.lower3 ?? [];
-
-        indicatorDataRef.current.VWAP = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.VWAP = {
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
           vwap: vwapData[vwapData.length - 1]?.value ?? null,
           upper1: upper1Data[upper1Data.length - 1]?.value ?? null,
           lower1: lower1Data[lower1Data.length - 1]?.value ?? null,
@@ -164,54 +120,28 @@ export default function useChartFunctions({
           upper3: upper3Data[upper3Data.length - 1]?.value ?? null,
           lower3: lower3Data[lower3Data.length - 1]?.value ?? null,
         };
-
-        console.log("VWAP RESULT", result);
-
         break;
       }
       case "CKS": {
         const longData = result?.data?.long ?? [];
         const shortData = result?.data?.short ?? [];
-
-        indicatorDataRef.current.CKS = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.CKS = {
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
           long: longData[longData.length - 1]?.value ?? null,
           short: shortData[shortData.length - 1]?.value ?? null,
         };
-
         break;
       }
       case "HV": {
         const hvData = result?.data?.hv ?? [];
-
-        indicatorDataRef.current.HV = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.HV = {
-          hvLine: hvData[hvData.length - 1]?.value ?? null,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = { hvLine: hvData[hvData.length - 1]?.value ?? null };
         break;
       }
-
       case "CMF": {
         const cmfData = result?.data?.cmf ?? [];
-
-        indicatorDataRef.current.CMF = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.CMF = {
-          cmfLine: cmfData[cmfData.length - 1]?.value ?? null,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = { cmfLine: cmfData[cmfData.length - 1]?.value ?? null };
         break;
       }
       case "SMA": {
@@ -219,13 +149,8 @@ export default function useChartFunctions({
         const smoothingData = result?.data?.smoothingMA ?? [];
         const bbUpper = result?.data?.bbUpper ?? [];
         const bbLower = result?.data?.bbLower ?? [];
-
-        indicatorDataRef.current.SMA = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.SMA = {
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
           sma: smaData[smaData.length - 1]?.value,
           smoothingMA: smoothingData[smoothingData.length - 1]?.value,
           bbUpper: bbUpper[bbUpper.length - 1]?.value,
@@ -241,14 +166,8 @@ export default function useChartFunctions({
         const ssl2 = result?.data?.ssl2 ?? [];
         const atrUpper = result?.data?.atrUpper ?? [];
         const atrLower = result?.data?.atrLower ?? [];
-        // const sslExit = result?.data?.sslExit ?? [];
-
-        indicatorDataRef.current.SSL_HYBRID = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.SSL_HYBRID = {
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
           baseline: baseline[baseline.length - 1]?.value,
           upperChannel: upperChannel[upperChannel.length - 1]?.value,
           lowerChannel: lowerChannel[lowerChannel.length - 1]?.value,
@@ -256,30 +175,23 @@ export default function useChartFunctions({
           ssl2: ssl2[ssl2.length - 1]?.value,
           atrUpper: atrUpper[atrUpper.length - 1]?.value,
           atrLower: atrLower[atrLower.length - 1]?.value,
-          // sslExit: sslExit[sslExit.length - 1]?.value,
         };
-
         break;
       }
       case "ICHIMOKU": {
-        indicatorDataRef.current.ICHIMOKU = {
-          result,
-          rows,
-        };
+        indicatorDataRef.current[id] = { result, rows };
         const conversionLine = result?.data?.conversionLine;
         const baseLine = result?.data?.baseLine;
         const leadLine1 = result?.data?.leadLine1;
         const leadLine2 = result?.data?.leadLine2;
         const laggingSpan = result?.data?.laggingSpan;
-
-        latestIndicatorValuesRef.current.ICHIMOKU = {
+        latestIndicatorValuesRef.current[id] = {
           conversionLine: conversionLine?.[conversionLine.length - 1]?.value,
           baseLine: baseLine?.[baseLine.length - 1]?.value,
           leadLine1: leadLine1?.[leadLine1.length - 1]?.value,
           leadLine2: leadLine2?.[leadLine2.length - 1]?.value,
           laggingSpan: laggingSpan?.[laggingSpan.length - 1]?.value,
         };
-
         break;
       }
       case "EMA": {
@@ -287,158 +199,77 @@ export default function useChartFunctions({
         const smoothingData = result?.data?.smoothingMA ?? [];
         const bbUpperData = result?.data?.bbUpper ?? [];
         const bbLowerData = result?.data?.bbLower ?? [];
-
-        indicatorDataRef.current.EMA = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.EMA = {
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
           ema: emaData[emaData.length - 1]?.value ?? null,
           smoothingMA: smoothingData[smoothingData.length - 1]?.value ?? null,
           bbUpper: bbUpperData[bbUpperData.length - 1]?.value ?? null,
           bbLower: bbLowerData[bbLowerData.length - 1]?.value ?? null,
         };
-
         break;
       }
       case "WMA": {
         const wmaData = result?.data?.wma ?? [];
-
-        indicatorDataRef.current.WMA = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.WMA = {
-          wma: wmaData[wmaData.length - 1]?.value,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = { wma: wmaData[wmaData.length - 1]?.value };
         break;
       }
       case "HMA": {
         const hmaData = result?.data?.hma ?? [];
-
-        indicatorDataRef.current.HMA = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.HMA = {
-          hma: hmaData[hmaData.length - 1]?.value,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = { hma: hmaData[hmaData.length - 1]?.value };
         break;
       }
       case "DEMA": {
         const demaData = result?.data?.dema ?? [];
-
-        indicatorDataRef.current.DEMA = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.DEMA = {
-          dema: demaData[demaData.length - 1]?.value,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = { dema: demaData[demaData.length - 1]?.value };
         break;
       }
       case "TEMA": {
         const temaData = result?.data?.tema ?? [];
-
-        indicatorDataRef.current.TEMA = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.TEMA = {
-          tema: temaData[temaData.length - 1]?.value,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = { tema: temaData[temaData.length - 1]?.value };
         break;
       }
       case "KAMA": {
         const kamaData = result?.data?.kama ?? [];
-
-        indicatorDataRef.current.KAMA = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.KAMA = {
-          kama: kamaData[kamaData.length - 1]?.value,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = { kama: kamaData[kamaData.length - 1]?.value };
         break;
       }
       case "SUPERTREND": {
         const upTrend = result?.data?.upTrend ?? [];
         const downTrend = result?.data?.downTrend ?? [];
         const bodyMiddle = result?.data?.bodyMiddle ?? [];
-
-        // store the series reference and rows
-        indicatorDataRef.current.SUPERTREND = {
-          result,
-          rows,
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
+          upTrend: upTrend[upTrend.length - 1]?.value ?? null,
+          downTrend: downTrend[downTrend.length - 1]?.value ?? null,
+          bodyMiddle: bodyMiddle[bodyMiddle.length - 1]?.value ?? null,
         };
-
-        // get the last available value for each line
-        const lastUp = upTrend[upTrend.length - 1]?.value ?? null;
-        const lastDown = downTrend[downTrend.length - 1]?.value ?? null;
-        const lastMiddle = bodyMiddle[bodyMiddle.length - 1]?.value ?? null;
-
-        // store latest values
-        latestIndicatorValuesRef.current.SUPERTREND = {
-          upTrend: lastUp,
-          downTrend: lastDown,
-          bodyMiddle: lastMiddle,
-        };
-
         break;
       }
       case "AROON": {
         const aroonUp = result?.data?.aroonUp ?? [];
         const aroonDown = result?.data?.aroonDown ?? [];
-
-        indicatorDataRef.current.AROON = {
-          result,
-          rows,
-        };
-        console.log(result, "ressssssssssss");
-
-        latestIndicatorValuesRef.current.AROON = {
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
           aroonUp: aroonUp[aroonUp.length - 1]?.value,
           aroonDown: aroonDown[aroonDown.length - 1]?.value,
         };
-
         break;
       }
       case "AO": {
         const osc = result?.data ?? [];
-
-        indicatorDataRef.current.AO = {
-          result,
-          rows,
-        };
-        latestIndicatorValuesRef.current.AO = {
-          oscillator: osc[osc.length - 1]?.value,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = { oscillator: osc[osc.length - 1]?.value };
         break;
       }
       case "ADX": {
-        indicatorDataRef.current.ADX = {
-          result,
-          rows,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
         const adx = result?.data?.adx ?? [];
-
-        latestIndicatorValuesRef.current.ADX = {
-          adx: adx[adx.length - 1]?.value,
-        };
-
+        latestIndicatorValuesRef.current[id] = { adx: adx[adx.length - 1]?.value };
         break;
       }
       case "CCI": {
@@ -446,403 +277,201 @@ export default function useChartFunctions({
         const cciMa = result?.data?.cciMa ?? [];
         const bbUpper = result?.data?.bbUpper ?? [];
         const bbLower = result?.data?.bbLower ?? [];
-
-        indicatorDataRef.current.CCI = {
-          result,
-          rows,
-        };
-        latestIndicatorValuesRef.current.CCI = {
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
           cci: cciLine[cciLine.length - 1]?.value,
           cciMa: cciMa[cciMa.length - 1]?.value,
           bbUpper: bbUpper[bbUpper.length - 1]?.value,
           bbLower: bbLower[bbLower.length - 1]?.value,
         };
-
         break;
       }
       case "CMO": {
         const cmoData = result?.data?.cmo ?? [];
-
-        indicatorDataRef.current.CMO = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.CMO = {
-          cmo: cmoData[cmoData.length - 1]?.value ?? null,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = { cmo: cmoData[cmoData.length - 1]?.value ?? null };
         break;
       }
-
       case "MOM": {
         const momentum = result?.data?.MOM ?? [];
-
-        if (!indicatorDataRef.current.MOM) {
-          indicatorDataRef.current.MOM = {
-            MOM: null,
-            result: null,
-            rows: [],
-          };
-        }
-
-        indicatorDataRef.current.MOM.result = result;
-        indicatorDataRef.current.MOM.rows = rows;
-
-        latestIndicatorValuesRef.current.MOM = {
-          MOM: momentum[momentum.length - 1]?.value,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = { MOM: momentum[momentum.length - 1]?.value };
         break;
       }
-
       case "ROC": {
-        indicatorDataRef.current.ROC = {
-          result,
-          rows,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
         const roc = result?.data?.roc ?? [];
-
-        latestIndicatorValuesRef.current.ROC = {
-          roc: roc[roc.length - 1]?.value,
-        };
-
+        latestIndicatorValuesRef.current[id] = { roc: roc[roc.length - 1]?.value };
         break;
       }
-
       case "WPR": {
-        indicatorSeriesRef.current["WPR"] = {
-          result,
-          rows,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
         const r = result?.data?.r ?? [];
-
-        latestIndicatorValuesRef.current["WPR"] = {
-          r: r[r.length - 1]?.value,
-        };
-
+        latestIndicatorValuesRef.current[id] = { r: r[r.length - 1]?.value };
         break;
       }
       case "TR": {
         const trData = result?.data?.tr ?? [];
-
-        indicatorSeriesRef.current[indicator] = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current[indicator] = {
-          tr: trData.length > 0 ? trData[trData.length - 1]?.value : null,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = { tr: trData.length > 0 ? trData[trData.length - 1]?.value : null };
         break;
       }
       case "VWMA": {
         const vwmaData = result?.data?.vwma ?? [];
-
-        indicatorSeriesRef.current[indicator] = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current[indicator] = {
-          vwma:
-            vwmaData.length > 0 ? vwmaData[vwmaData.length - 1]?.value : null,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = { vwma: vwmaData.length > 0 ? vwmaData[vwmaData.length - 1]?.value : null };
         break;
       }
       case "TMA": {
         const tmaData = result?.data?.tma ?? [];
-
-        indicatorSeriesRef.current[indicator] = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current[indicator] = {
-          tma: tmaData.length > 0 ? tmaData[tmaData.length - 1]?.value : null,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = { tma: tmaData.length > 0 ? tmaData[tmaData.length - 1]?.value : null };
         break;
       }
       case "RMA": {
         const rmaData = result?.data?.rma ?? [];
-
-        indicatorSeriesRef.current[indicator] = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current[indicator] = {
-          rma: rmaData.length > 0 ? rmaData[rmaData.length - 1]?.value : null,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = { rma: rmaData.length > 0 ? rmaData[rmaData.length - 1]?.value : null };
         break;
       }
       case "ATR": {
-        indicatorDataRef.current.ATR = {
-          result,
-          rows,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
         const atr = result?.data?.atr ?? [];
-
-        latestIndicatorValuesRef.current.ATR = {
-          atr: atr[atr.length - 1]?.value,
-        };
-
+        latestIndicatorValuesRef.current[id] = { atr: atr[atr.length - 1]?.value };
         break;
       }
       case "MFI": {
         const mfiData = result?.data?.mfi ?? [];
-
-        indicatorDataRef.current.MFI = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.MFI = {
-          mfi: mfiData[mfiData.length - 1]?.value ?? null,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = { mfi: mfiData[mfiData.length - 1]?.value ?? null };
         break;
       }
       case "PSAR": {
-        const psar = result;
-
-        indicatorDataRef.current.PSAR = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.PSAR = {
-          psar: psar?.[psar.length - 1]?.value,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = { psar: result?.[result.length - 1]?.value };
         break;
       }
-
       case "EOM": {
         const eomData = result?.data?.eom ?? [];
-
-        indicatorDataRef.current.EOM = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.EOM = {
-          eom: eomData[eomData.length - 1]?.value,
-        };
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = { eom: eomData[eomData.length - 1]?.value };
         break;
       }
-
       case "KC": {
         const upperData = result?.data?.upper ?? [];
         const lowerData = result?.data?.lower ?? [];
         const middleData = result?.data?.middle ?? [];
-
-        indicatorDataRef.current.KC = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.KC = {
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
           upper: upperData[upperData.length - 1]?.value ?? null,
           lower: lowerData[lowerData.length - 1]?.value ?? null,
           middle: middleData[middleData.length - 1]?.value ?? null,
         };
-
         break;
       }
       case "DC": {
         const upperData = result?.data?.upper ?? [];
         const lowerData = result?.data?.lower ?? [];
         const basisData = result?.data?.basis ?? [];
-
-        indicatorDataRef.current.DC = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.DC = {
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
           upper: upperData[upperData.length - 1]?.value ?? null,
           lower: lowerData[lowerData.length - 1]?.value ?? null,
           basis: basisData[basisData.length - 1]?.value ?? null,
         };
-
         break;
       }
-
       case "PVO": {
         const pvoData = result?.data?.pvo ?? [];
         const signalData = result?.data?.signal ?? [];
         const histData = result?.data?.hist ?? [];
-
-        if (!indicatorDataRef.current.PVO) {
-          indicatorDataRef.current.PVO = {};
-        }
-
-        indicatorDataRef.current.PVO.result = result;
-        indicatorDataRef.current.PVO.rows = rows;
-
-        if (!latestIndicatorValuesRef.current.PVO) {
-          latestIndicatorValuesRef.current.PVO = {};
-        }
-
-        latestIndicatorValuesRef.current.PVO = {
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
           pvo: pvoData[pvoData.length - 1]?.value,
           signal: signalData[signalData.length - 1]?.value,
           hist: histData[histData.length - 1]?.value,
         };
-
         break;
       }
       case "UO": {
         const uoData = result?.data?.uo ?? [];
-
-        indicatorDataRef.current.UO = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.UO = {
-          uo: uoData[uoData.length - 1]?.value ?? null,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = { uo: uoData[uoData.length - 1]?.value ?? null };
         break;
       }
       case "PVI": {
         const pviData = result?.data?.pvi ?? [];
         const pviEmaData = result?.data?.pviEma ?? [];
-
-        indicatorDataRef.current.PVI = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.PVI = {
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
           pvi: pviData[pviData.length - 1]?.value ?? null,
           pviEma: pviEmaData[pviEmaData.length - 1]?.value ?? null,
         };
-
         break;
       }
       case "NVI": {
         const nviData = result?.data?.nvi ?? [];
         const nviEmaData = result?.data?.pviEma ?? [];
-
-        indicatorDataRef.current.NVI = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.NVI = {
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
           nvi: nviData[nviData.length - 1]?.value ?? null,
           nviEma: nviEmaData[nviEmaData.length - 1]?.value ?? null,
         };
-
         break;
       }
-
       case "STOCHRSI": {
         const kData = result?.data?.kLine ?? [];
         const dData = result?.data?.dLine ?? [];
-
-        indicatorDataRef.current.STOCHRSI = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.STOCHRSI = {
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
           kLine: kData[kData.length - 1]?.value ?? null,
           dLine: dData[dData.length - 1]?.value ?? null,
         };
-
         break;
       }
-
       case "STOCH": {
         const k = result?.data?.k ?? [];
         const d = result?.data?.d ?? [];
-
-        indicatorDataRef.current.STOCH = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.STOCH = {
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
           k: k.length ? k[k.length - 1].value : null,
           d: d.length ? d[d.length - 1].value : null,
         };
-
         break;
       }
-
       case "TRIX": {
         const trixData = result?.data?.trix ?? [];
-
-        indicatorDataRef.current.TRIX = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.TRIX = {
-          trix: trixData[trixData.length - 1]?.value ?? null,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = { trix: trixData[trixData.length - 1]?.value ?? null };
         break;
       }
       case "FT": {
-        const rows = result?.data?.candles ?? [];
-
-        indicatorDataRef.current.FT = {
-          result,
-          rows,
+        const ftRows = result?.data?.candles ?? [];
+        indicatorDataRef.current[id] = { result, rows: ftRows };
+        latestIndicatorValuesRef.current[id] = {
+          fisherLine: ftRows[ftRows.length - 1]?.fish ?? null,
+          triggerLine: ftRows[ftRows.length - 1]?.trigger ?? null,
         };
-
-        console.log("result", result);
-
-        latestIndicatorValuesRef.current.FT = {
-          fisherLine: rows[rows.length - 1]?.fish ?? null,
-          triggerLine: rows[rows.length - 1]?.trigger ?? null,
-        };
-
         break;
       }
       case "ZIGZAG": {
         const lineData = result?.data?.zigzagLine ?? [];
         const pivots = result?.data?.paneLabels ?? [];
-
-        indicatorDataRef.current.ZIGZAG = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.ZIGZAG = {
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
           zigzagLine: lineData[lineData.length - 1]?.value ?? null,
           lastPivotType: pivots[pivots.length - 1]?.type ?? null,
         };
-
         break;
       }
-
       case "VP": {
         const volume = result?.data?.volume ?? [];
         const volumeMA = result?.data?.volumeMA ?? [];
-
-        indicatorDataRef.current.VP = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.VP = {
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
           volume: volume.at(-1)?.value,
           volumeMA: volumeMA.at(-1)?.value,
         };
-
         break;
       }
       case "OBV": {
@@ -850,158 +479,82 @@ export default function useChartFunctions({
         const ma = result?.data?.smoothingMA ?? [];
         const bbUpper = result?.data?.bbUpper ?? [];
         const bbLower = result?.data?.bbLower ?? [];
-
-        indicatorDataRef.current.OBV = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.OBV = {
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
           obv: obv.at(-1)?.value ?? null,
           smoothingMA: ma.at(-1)?.value ?? null,
           bbUpper: bbUpper.at(-1)?.value ?? null,
           bbLower: bbLower.at(-1)?.value ?? null,
         };
-
         break;
       }
       case "VOL": {
         const volData = result?.data?.volume ?? [];
         const maData = result?.data?.volumeMA ?? [];
-
-        indicatorDataRef.current.VOL = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.VOL = {
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
           volume: volData[volData.length - 1]?.value ?? null,
           volumeMA: maData[maData.length - 1]?.value ?? null,
         };
-
         break;
       }
       case "CHOP": {
         const chopData = result?.data?.chopLine ?? [];
-
-        indicatorDataRef.current.CHOP = {
-          result,
-          rows,
-        };
-
-        console.log(result, "ressssss");
-        latestIndicatorValuesRef.current.CHOP = {
-          chop: chopData[chopData.length - 1]?.value ?? null,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = { chop: chopData[chopData.length - 1]?.value ?? null };
         break;
       }
       case "STDDEV": {
         const stddevData = result?.data ?? [];
-
-        indicatorDataRef.current.STDDEV = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.STDDEV = {
-          value: stddevData.at(-1)?.value,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = { value: stddevData.at(-1)?.value };
         break;
       }
       case "BB": {
         const upperData = result?.data?.upper ?? [];
         const lowerData = result?.data?.lower ?? [];
         const basisData = result?.data?.basis ?? [];
-
-        indicatorDataRef.current.BB = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.BB = {
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
           upper: upperData[upperData.length - 1]?.value ?? null,
           lower: lowerData[lowerData.length - 1]?.value ?? null,
           basis: basisData[basisData.length - 1]?.value ?? null,
         };
-
         break;
       }
       case "AD": {
         const adData = result?.data ?? [];
-
-        indicatorDataRef.current.AD = {
-          result,
-          rows,
-        };
-        console.log(result, "ress");
-
-        latestIndicatorValuesRef.current.AD = {
-          value: adData.at(-1)?.value,
-        };
-
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = { value: adData.at(-1)?.value };
         break;
       }
       case "KVO": {
         const kvoData = result?.data?.kvo ?? [];
         const signalData = result?.data?.signal ?? [];
-
-        indicatorDataRef.current.KVO = {
-          result,
-          rows,
-        };
-
-        latestIndicatorValuesRef.current.KVO = {
+        indicatorDataRef.current[id] = { result, rows };
+        latestIndicatorValuesRef.current[id] = {
           kvo: kvoData[kvoData.length - 1]?.value ?? null,
           signal: signalData[signalData.length - 1]?.value ?? null,
         };
-
         break;
       }
       case "AWO": {
-        const rows = result?.data?.series ?? [];
-
-        const awoData = rows
-          .filter((d) => d.ao != null && d.time != null)
-          .map((d) => ({
-            time: Number(d.time) + IST_OFFSET,
-            value: Number(d.ao),
-            color: d.color, // optional if backend provides it
-            changeToGreen: d.changeToGreen,
-            changeToRed: d.changeToRed,
-          }));
-
-        indicatorDataRef.current.AWO = {
-          result,
-          rows,
+        const awoRows = result?.data?.series ?? [];
+        indicatorDataRef.current[id] = { result, rows: awoRows };
+        const awoData = awoRows.filter((d) => d.ao != null && d.time != null);
+        latestIndicatorValuesRef.current[id] = {
+          awo: awoData.length ? awoData[awoData.length - 1].ao : null,
         };
-
-        latestIndicatorValuesRef.current.AWO = {
-          awo: awoData.length ? awoData[awoData.length - 1].value : null,
-        };
-
         break;
       }
-      case "VP":
-        return {
-          type: "multi",
-          data: {
-            vp:
-              result?.volumeprofile
-                ?.filter((d) => d.price != null && d.volume != null)
-                .map((d) => ({
-                  price: Number(d.price),
-                  volume: Number(d.volume),
-                })) ?? [],
-
-            poc: result?.volumePoc ?? null,
-            vah: result?.volumevah ?? null,
-            val: result?.volumeval ?? null,
-          },
-        };
+      default:
+        indicatorDataRef.current[id] = { result, rows };
+        break;
     }
   }
+
+
+
 
   return {
     // fetchDataByCurrency,
@@ -1028,7 +581,7 @@ async function fetchDataForIndicators(
         fromdate: fromDate,
         todate: toDate,
         type,
-        candles, // ✅ MOST IMPORTANT
+        candles, 
       });
       socketRef.current?.once("indicatorDetailsResponse", (data) => {
         console.log(data, "===========================");

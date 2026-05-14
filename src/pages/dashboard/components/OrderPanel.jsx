@@ -849,7 +849,6 @@
 // };
 
 // export default OrderPanel;
-
 import React, { useEffect, useState, useRef } from "react";
 import apiService from "../../../services/apiServices";
 import SearchSelect from "./SearchSelect";
@@ -871,9 +870,10 @@ const ACTION_MAP = {
   SQ_PUT:   "SELL",
 };
 
-const getValidationError = ({ stock, expiry, preference, product, orderType, qty }) => {
+const getValidationError = ({ stock, expiry, strategy, preference, product, orderType, qty }) => {
   if (!stock)          return "Please select a Stock before proceeding.";
   if (!expiry)         return "Please select an Expiry date.";
+  if (!strategy)       return "Please select a Strategy.";
   if (!preference)     return "Please select a Preference (ATM / ITM / OTM).";
   if (!product)        return "Please select a Product type (INTRADAY / CARRYFORWARD).";
   if (!orderType)      return "Please select an Order Type (MARKET / LIMIT).";
@@ -888,7 +888,6 @@ const findATM = (strikes, ltp) =>
 
 const fmt = (n) => (n != null ? Number(n).toLocaleString("en-IN") : "—");
 
-// "2,275" → 2275   |   "25350" → 25350
 const parseStrike = (formatted) => {
   if (!formatted || formatted === "—") return NaN;
   return Number(String(formatted).replace(/,/g, ""));
@@ -906,6 +905,15 @@ const OrderPanel = ({
   action, setAction,
   orders, setOrders,
 }) => {
+  const parseSymbolName = (fullName) => {
+    if (!fullName || typeof fullName !== "string") return { base: fullName, hasExpiry: false };
+    const match = fullName.match(/^([A-Z-]+)\s?(\d{1,2}[A-Z]{3}\d{2,4})\s?(.*)$/i);
+    if (match) {
+      return { base: match[1].trim(), expiry: match[2], suffix: match[3].trim(), hasExpiry: true };
+    }
+    return { base: fullName, hasExpiry: false };
+  };
+
   const [stocks, setStocks]               = useState([]);
   const [validationMsg, setValidationMsg] = useState("");
   const [chainLoading, setChainLoading]   = useState(false);
@@ -918,12 +926,21 @@ const OrderPanel = ({
   const [strikeMap, setStrikeMap]           = useState({});
   const [lotSize, setLotSize]               = useState(75);
 
-  // Full stock object from SearchSelect — gives us token + tradingsymbol directly
   const [selectedStockObj, setSelectedStockObj] = useState(null);
 
+  // ── Live option chain from websocket ──
+  const [wsChain, setWsChain] = useState(null);
+
   const fetchedChainStockRef = useRef(null);
+  const subscribedSymbolRef  = useRef(null);
 
   const recommendedStrike = strikeMap[strategy]?.[preference] ?? "—";
+
+  // Derived: live CE/PE LTP for the recommended strike from websocket
+  const strikeNum     = parseStrike(recommendedStrike);
+  const wsRow         = wsChain?.chain?.find((c) => Number(c.strike) === strikeNum);
+  const liveCeLtp     = wsRow?.ce?.ltp  != null ? Number(wsRow.ce.ltp)  : null;
+  const livePeLtp     = wsRow?.pe?.ltp  != null ? Number(wsRow.pe.ltp)  : null;
 
   // ── 1. Socket: master watchlist + live ticks ──
   useEffect(() => {
@@ -953,24 +970,74 @@ const OrderPanel = ({
     };
   }, []);
 
-  // ── 2. Keep selectedStockObj + live price in sync with ticks ──
+  // ── 2. Subscribe/unsubscribe option chain when stock changes ──
+  useEffect(() => {
+    // Unsubscribe previous symbol if any
+    if (subscribedSymbolRef.current) {
+      socket.emit("unsubscribeOptionChain", { symbol: subscribedSymbolRef.current });
+      subscribedSymbolRef.current = null;
+      setWsChain(null);
+    }
+
+    if (!stock) return;
+
+    const currentToken = stock?.token ?? stock;
+    const stockObj = stocks.find((s) => s.token === currentToken);
+    if (!stockObj) return;
+
+    const rawSymbol      = stockObj.symbol ?? stockObj.name ?? stockObj.userCode ?? stockObj.actualSymbol;
+    const symbolForChain = parseSymbolName(rawSymbol).base;
+
+    // Subscribe to live option chain
+    socket.emit("subscribeOptionChain", { symbol: symbolForChain });
+    subscribedSymbolRef.current = symbolForChain;
+
+    // Handler for live option chain updates
+    const handleOptionChainUpdate = (data) => {
+      // Match by symbol to avoid stale updates from previous stock
+      if (data?.symbol !== subscribedSymbolRef.current) return;
+
+      setWsChain(data);
+
+      // Keep spot price live from websocket chain
+      if (data?.spotPrice != null) {
+        setCurrentPrice(Number(data.spotPrice));
+      }
+    };
+
+    socket.on("optionChainUpdate", handleOptionChainUpdate);
+
+    return () => {
+      socket.off("optionChainUpdate", handleOptionChainUpdate);
+      // Unsubscribe on cleanup
+      if (subscribedSymbolRef.current) {
+        socket.emit("unsubscribeOptionChain", { symbol: subscribedSymbolRef.current });
+        subscribedSymbolRef.current = null;
+      }
+    };
+  }, [stock, stocks]);
+
+  // ── 3. Keep selectedStockObj + live price in sync with ticks ──
   useEffect(() => {
     if (!stock || stocks.length === 0) return;
-    // stock is now a token string
-    const match = stocks.find((s) => s.token === stock);
+    const currentToken = stock?.token ?? stock;
+    const match = stocks.find((s) => s.token === currentToken);
     if (!match) return;
 
     setSelectedStockObj((prev) => prev ? { ...prev, ...match } : match);
 
     const ltp = Number(match.ltp);
     if (!isNaN(ltp) && ltp > 0) {
-      setCurrentPrice(ltp);
+      // Only update from stock tick if wsChain hasn't provided a spotPrice
+      if (!wsChain?.spotPrice) {
+        setCurrentPrice(ltp);
+      }
       if (match.change         != null) setPriceChange(Number(match.change));
       if (match.percent_change != null) setPriceChangePct(Number(match.percent_change));
     }
-  }, [stock, stocks]);
+  }, [stock, stocks, wsChain]);
 
-  // ── 3. Fetch options chain when stock changes ──
+  // ── 4. Fetch options chain (expiries + lot size + strike map) when stock changes ──
   useEffect(() => {
     if (!stock) {
       setCurrentPrice(null);
@@ -984,22 +1051,23 @@ const OrderPanel = ({
       setLotSize(75);
       setRawChainData(null);
       setSelectedStockObj(null);
+      setWsChain(null);
       fetchedChainStockRef.current = null;
       return;
     }
 
-    if (fetchedChainStockRef.current === stock) return;
+    const currentToken = stock?.token ?? stock;
+    if (fetchedChainStockRef.current === currentToken) return;
 
-    // stock is a token — find the full object
-    const stockObj = stocks.find((s) => s.token === stock);
+    const stockObj = stocks.find((s) => s.token === currentToken);
     if (!stockObj) return;
 
     async function fetchChain() {
       setChainLoading(true);
       try {
-        // Use symbol or name — whatever your chain API expects
-        const symbolForChain = stockObj.symbol ?? stockObj.userCode ?? stockObj.actualSymbol ?? stockObj.name;
-        const data = await apiService.get("options/chain", { symbol: symbolForChain });
+        const rawSymbol      = stockObj.symbol ?? stockObj.name ?? stockObj.userCode ?? stockObj.actualSymbol;
+        const symbolForChain = parseSymbolName(rawSymbol).base;
+        const data           = await apiService.get("options/chain", { symbol: symbolForChain });
         setRawChainData(data);
 
         if (data?.lotSize) setLotSize(data.lotSize);
@@ -1012,8 +1080,8 @@ const OrderPanel = ({
         const ltpToUse = currentPrice ?? (chainLtp ? Number(chainLtp) : null);
         if (ltpToUse && !currentPrice) setCurrentPrice(ltpToUse);
 
-        // Build strike list from chain array (API has no top-level `strikes` array)
-        const chain = data?.chain ?? [];
+        // Build strike map from REST chain (used for ATM/ITM/OTM labels)
+        const chain   = data?.chain ?? [];
         const strikes = chain
           .map((c) => Number(c.strike))
           .filter((n) => !isNaN(n))
@@ -1053,14 +1121,14 @@ const OrderPanel = ({
         console.error("Error fetching options chain:", err);
       } finally {
         setChainLoading(false);
-        fetchedChainStockRef.current = stock;
+        fetchedChainStockRef.current = stock?.token ?? stock;
       }
     }
 
     fetchChain();
   }, [stock, stocks]);
 
-  // ── 4. Place order ──
+  // ── 5. Place order ──
   const handlePlaceOrder = async (selectedAction) => {
     const error = getValidationError({ stock, expiry, strategy, preference, product, orderType, qty });
     if (error) { setValidationMsg(error); return; }
@@ -1068,61 +1136,67 @@ const OrderPanel = ({
     setValidationMsg("");
     setAction(selectedAction);
 
-    const stockObj = selectedStockObj ?? stocks.find((s) => s.token === stock);
+    const currentToken = stock?.token ?? stock;
+    const stockObj     = selectedStockObj ?? stocks.find((s) => s.token === currentToken);
     if (!stockObj) {
       setValidationMsg("Selected stock not found. Please re-select.");
       return;
     }
 
-    const isCall     = selectedAction.includes("CALL");
-    const optionType = isCall ? "ce" : "pe";
-    const strikeNum  = parseStrike(recommendedStrike);
+    const isCall    = selectedAction.includes("CALL");
+    const strikeNum = parseStrike(recommendedStrike);
 
-    console.log("recommendedStrike", recommendedStrike);
-    console.log("strikeNum",         strikeNum);
-    console.log("optionType",        optionType);
-    console.log("rawChainData",      rawChainData);
+    // ── Primary: websocket chain (live, has ce/pe keys) ──
+    const wsChainRow  = wsChain?.chain?.find((c) => Number(c.strike) === strikeNum);
+    const wsContract  = wsChainRow?.[isCall ? "ce" : "pe"];
 
-    const contract = rawChainData?.chain?.find(
-      (c) => Number(c.strike) === strikeNum,
-    )?.[optionType];
+    // ── Fallback: REST chain (has call/put keys) ──
+    const restChainRow = rawChainData?.chain?.find((c) => Number(c.strike) === strikeNum);
+    const restContract = restChainRow?.[isCall ? "call" : "put"];
 
-    console.log("contract", contract);
+    const contract = wsContract ?? restContract;
+
+    console.log("strikeNum",    strikeNum);
+    console.log("wsChainRow",   wsChainRow);
+    console.log("wsContract",   wsContract);
+    console.log("restContract", restContract);
+    console.log("contract",     contract);
 
     if (!contract) {
       setValidationMsg(
-        `Could not find ${optionType.toUpperCase()} contract for strike ${recommendedStrike}. Please check your selection.`,
+        `Could not find ${isCall ? "CE" : "PE"} contract for strike ${recommendedStrike}. Please check your selection.`,
       );
       return;
     }
 
-    // Resolve tradingsymbol — chain contract wins, then fall back to stockObj.userCode
-    // (userCode IS the tradingsymbol for options/futures on Angel One)
     const tradingsymbol =
       contract?.symbol        ??
       contract?.tradingsymbol ??
       contract?.name          ??
       stockObj.userCode;
 
-    // Resolve token — chain contract wins, then fall back to stockObj.token
     const symboltoken =
       contract?.token       ??
       contract?.symboltoken ??
       stockObj.token;
+
+    // For LIMIT orders — use live contract LTP from websocket, fallback to spot price
+    const contractLtp = wsContract?.ltp != null ? Number(wsContract.ltp) : null;
 
     const payload = {
       variety:         "NORMAL",
       tradingsymbol,
       symboltoken,
       transactiontype: ACTION_MAP[selectedAction],
-      exchange:        "NFO",
+      exchange:        contract?.exch_seg ?? contract?.exchange ?? stockObj?.segment ?? "NFO",
       ordertype:       orderType,
       producttype:     product,
       duration:        validity || "DAY",
-      price:           orderType === "MARKET" ? "0" : String(currentPrice ?? 0),
+      price:           orderType === "MARKET"
+                         ? "0"
+                         : String(contractLtp ?? currentPrice ?? 0),
       quantity:        qty * lotSize,
       squareoff:       "0",
-      stoploss:        "0",
     };
 
     console.log("🚀 DISPATCH PAYLOAD:", payload);
@@ -1159,7 +1233,11 @@ const OrderPanel = ({
                 fontWeight: 700, color: "#10b981",
               }}>
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {selectedStockObj?.name ?? selectedStockObj?.symbol ?? stock}
+                  {(() => {
+                    const fullName = selectedStockObj?.name ?? selectedStockObj?.symbol ?? stock?.name ?? stock;
+                    const parsed   = parseSymbolName(fullName);
+                    return parsed.base;
+                  })()}
                 </span>
                 <span
                   onClick={() => { setStock(""); setSelectedStockObj(null); setValidationMsg(""); }}
@@ -1176,7 +1254,7 @@ const OrderPanel = ({
               <SearchSelect
                 stocks={stocks}
                 stock={stock}
-                setStock={(val) => { setStock(val); setValidationMsg(""); }}
+                setStock={(obj) => { setStock(obj); setValidationMsg(""); }}
                 onSelect={(obj) => { setSelectedStockObj(obj); setValidationMsg(""); }}
                 style={{ ...s.select, fontSize: "0.85rem", fontWeight: 700 }}
               />
@@ -1207,7 +1285,9 @@ const OrderPanel = ({
             )}
           </div>
 
-          <div>
+          <div style={{
+            display: parseSymbolName(selectedStockObj?.name ?? selectedStockObj?.symbol ?? stock?.name ?? stock).hasExpiry ? "block" : "none",
+          }}>
             <label style={s.label}>Expiry</label>
             <select
               style={s.select}
@@ -1276,6 +1356,30 @@ const OrderPanel = ({
                   <span style={{ fontSize: "0.65rem", opacity: 0.5, marginLeft: 4 }}>{preference}</span>
                 )}
               </div>
+
+              {/* ── Live CE / PE premiums from websocket ── */}
+              {wsRow && (liveCeLtp != null || livePeLtp != null) && (
+                <div style={{ display: "flex", justifyContent: "center", gap: 12, marginTop: 5 }}>
+                  {liveCeLtp != null && (
+                    <span style={{
+                      fontSize: "0.65rem", fontWeight: 600,
+                      background: "rgba(16,185,129,0.12)", color: "#10b981",
+                      padding: "2px 7px", borderRadius: 5,
+                    }}>
+                      CE ₹{liveCeLtp.toFixed(2)}
+                    </span>
+                  )}
+                  {livePeLtp != null && (
+                    <span style={{
+                      fontSize: "0.65rem", fontWeight: 600,
+                      background: "rgba(239,68,68,0.12)", color: "#ef4444",
+                      padding: "2px 7px", borderRadius: 5,
+                    }}>
+                      PE ₹{livePeLtp.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1336,9 +1440,13 @@ const OrderPanel = ({
             <label style={s.label}>Price</label>
             <input
               style={s.input}
-              placeholder="Market Price"
-              value={currentPrice != null ? Number(currentPrice).toFixed(2) : ""}
-              readOnly
+              placeholder={orderType === "MARKET" ? "Market Price" : "0.00"}
+              value={currentPrice != null ? currentPrice : ""}
+              readOnly={orderType === "MARKET"}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (/^\d*\.?\d*$/.test(val)) setCurrentPrice(val);
+              }}
             />
           </div>
 
