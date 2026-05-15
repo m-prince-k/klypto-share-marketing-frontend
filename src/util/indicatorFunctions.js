@@ -726,7 +726,7 @@ export let indicatorStyleDefault = {
   HMA: {
     hma: {
       visible: true,
-      color: "rgba(0,0,0)",
+      color: "rgba(0,0,255,1)",
       width: 1,
       lineStyle: 0,
       opacity: 100,

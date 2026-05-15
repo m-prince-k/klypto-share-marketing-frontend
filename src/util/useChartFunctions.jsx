@@ -24,7 +24,7 @@ export default function useChartFunctions({
     await Promise.all(
       selectedIndicator.map(async (indItem) => {
         // Support both {id, type} objects and legacy plain strings
-        const id   = typeof indItem === "object" ? indItem.id   : indItem;
+        const id = typeof indItem === "object" ? indItem.id : indItem;
         const type = typeof indItem === "object" ? indItem.type : indItem;
         try {
           const result = await fetchDataForIndicators(
@@ -56,10 +56,19 @@ export default function useChartFunctions({
       case "RSI": {
         const rsiData = result?.data?.rsi ?? [];
         const smoothingMA = result?.data?.smoothingMA ?? [];
-        const bbUpperData = result?.data?.bbUpperBand ?? result?.data?.bbUpper ?? [];
-        const bbLowerData = result?.data?.bbLowerBand ?? result?.data?.bbLower ?? [];
+        const bbUpperData =
+          result?.data?.bbUpperBand ?? result?.data?.bbUpper ?? [];
+        const bbLowerData =
+          result?.data?.bbLowerBand ?? result?.data?.bbLower ?? [];
         indicatorDataRef.current[id] = {
-          result: { ...result, data: { ...result.data, bbUpper: bbUpperData, bbLower: bbLowerData } },
+          result: {
+            ...result,
+            data: {
+              ...result.data,
+              bbUpper: bbUpperData,
+              bbLower: bbLowerData,
+            },
+          },
           rows,
         };
         latestIndicatorValuesRef.current[id] = {
@@ -77,8 +86,14 @@ export default function useChartFunctions({
         indicatorDataRef.current[id] = { result, rows };
         latestIndicatorValuesRef.current[id] = {
           bbw: bbwData[bbwData.length - 1]?.value ?? null,
-          highest: highestData.length > 0 ? highestData[highestData.length - 1]?.value : null,
-          lowest: lowestData.length > 0 ? lowestData[lowestData.length - 1]?.value : null,
+          highest:
+            highestData.length > 0
+              ? highestData[highestData.length - 1]?.value
+              : null,
+          lowest:
+            lowestData.length > 0
+              ? lowestData[lowestData.length - 1]?.value
+              : null,
         };
         break;
       }
@@ -98,18 +113,24 @@ export default function useChartFunctions({
         const percentBData = result?.data?.percentB ?? [];
         indicatorDataRef.current[id] = { result, rows };
         latestIndicatorValuesRef.current[id] = {
-          percentB: percentBData.length > 0 ? percentBData[percentBData.length - 1]?.value : null,
+          percentB:
+            percentBData.length > 0
+              ? percentBData[percentBData.length - 1]?.value
+              : null,
         };
         break;
       }
       case "VWAP": {
         const vwapData = result?.data?.vwap ?? [];
+        console.log("VWAP raw:", result.data, "| rows length:", rows.length);
+
         const upper1Data = result?.data?.upper1 ?? [];
         const lower1Data = result?.data?.lower1 ?? [];
         const upper2Data = result?.data?.upper2 ?? [];
         const lower2Data = result?.data?.lower2 ?? [];
         const upper3Data = result?.data?.upper3 ?? [];
         const lower3Data = result?.data?.lower3 ?? [];
+
         indicatorDataRef.current[id] = { result, rows };
         latestIndicatorValuesRef.current[id] = {
           vwap: vwapData[vwapData.length - 1]?.value ?? null,
@@ -135,13 +156,17 @@ export default function useChartFunctions({
       case "HV": {
         const hvData = result?.data?.hv ?? [];
         indicatorDataRef.current[id] = { result, rows };
-        latestIndicatorValuesRef.current[id] = { hvLine: hvData[hvData.length - 1]?.value ?? null };
+        latestIndicatorValuesRef.current[id] = {
+          hvLine: hvData[hvData.length - 1]?.value ?? null,
+        };
         break;
       }
       case "CMF": {
         const cmfData = result?.data?.cmf ?? [];
         indicatorDataRef.current[id] = { result, rows };
-        latestIndicatorValuesRef.current[id] = { cmfLine: cmfData[cmfData.length - 1]?.value ?? null };
+        latestIndicatorValuesRef.current[id] = {
+          cmfLine: cmfData[cmfData.length - 1]?.value ?? null,
+        };
         break;
       }
       case "SMA": {
@@ -211,31 +236,41 @@ export default function useChartFunctions({
       case "WMA": {
         const wmaData = result?.data?.wma ?? [];
         indicatorDataRef.current[id] = { result, rows };
-        latestIndicatorValuesRef.current[id] = { wma: wmaData[wmaData.length - 1]?.value };
+        latestIndicatorValuesRef.current[id] = {
+          wma: wmaData[wmaData.length - 1]?.value,
+        };
         break;
       }
       case "HMA": {
         const hmaData = result?.data?.hma ?? [];
         indicatorDataRef.current[id] = { result, rows };
-        latestIndicatorValuesRef.current[id] = { hma: hmaData[hmaData.length - 1]?.value };
+        latestIndicatorValuesRef.current[id] = {
+          hma: hmaData[hmaData.length - 1]?.value,
+        };
         break;
       }
       case "DEMA": {
         const demaData = result?.data?.dema ?? [];
         indicatorDataRef.current[id] = { result, rows };
-        latestIndicatorValuesRef.current[id] = { dema: demaData[demaData.length - 1]?.value };
+        latestIndicatorValuesRef.current[id] = {
+          dema: demaData[demaData.length - 1]?.value,
+        };
         break;
       }
       case "TEMA": {
         const temaData = result?.data?.tema ?? [];
         indicatorDataRef.current[id] = { result, rows };
-        latestIndicatorValuesRef.current[id] = { tema: temaData[temaData.length - 1]?.value };
+        latestIndicatorValuesRef.current[id] = {
+          tema: temaData[temaData.length - 1]?.value,
+        };
         break;
       }
       case "KAMA": {
         const kamaData = result?.data?.kama ?? [];
         indicatorDataRef.current[id] = { result, rows };
-        latestIndicatorValuesRef.current[id] = { kama: kamaData[kamaData.length - 1]?.value };
+        latestIndicatorValuesRef.current[id] = {
+          kama: kamaData[kamaData.length - 1]?.value,
+        };
         break;
       }
       case "SUPERTREND": {
@@ -263,13 +298,17 @@ export default function useChartFunctions({
       case "AO": {
         const osc = result?.data ?? [];
         indicatorDataRef.current[id] = { result, rows };
-        latestIndicatorValuesRef.current[id] = { oscillator: osc[osc.length - 1]?.value };
+        latestIndicatorValuesRef.current[id] = {
+          oscillator: osc[osc.length - 1]?.value,
+        };
         break;
       }
       case "ADX": {
         indicatorDataRef.current[id] = { result, rows };
         const adx = result?.data?.adx ?? [];
-        latestIndicatorValuesRef.current[id] = { adx: adx[adx.length - 1]?.value };
+        latestIndicatorValuesRef.current[id] = {
+          adx: adx[adx.length - 1]?.value,
+        };
         break;
       }
       case "CCI": {
@@ -289,19 +328,25 @@ export default function useChartFunctions({
       case "CMO": {
         const cmoData = result?.data?.cmo ?? [];
         indicatorDataRef.current[id] = { result, rows };
-        latestIndicatorValuesRef.current[id] = { cmo: cmoData[cmoData.length - 1]?.value ?? null };
+        latestIndicatorValuesRef.current[id] = {
+          cmo: cmoData[cmoData.length - 1]?.value ?? null,
+        };
         break;
       }
       case "MOM": {
         const momentum = result?.data?.MOM ?? [];
         indicatorDataRef.current[id] = { result, rows };
-        latestIndicatorValuesRef.current[id] = { MOM: momentum[momentum.length - 1]?.value };
+        latestIndicatorValuesRef.current[id] = {
+          MOM: momentum[momentum.length - 1]?.value,
+        };
         break;
       }
       case "ROC": {
         indicatorDataRef.current[id] = { result, rows };
         const roc = result?.data?.roc ?? [];
-        latestIndicatorValuesRef.current[id] = { roc: roc[roc.length - 1]?.value };
+        latestIndicatorValuesRef.current[id] = {
+          roc: roc[roc.length - 1]?.value,
+        };
         break;
       }
       case "WPR": {
@@ -313,48 +358,65 @@ export default function useChartFunctions({
       case "TR": {
         const trData = result?.data?.tr ?? [];
         indicatorDataRef.current[id] = { result, rows };
-        latestIndicatorValuesRef.current[id] = { tr: trData.length > 0 ? trData[trData.length - 1]?.value : null };
+        latestIndicatorValuesRef.current[id] = {
+          tr: trData.length > 0 ? trData[trData.length - 1]?.value : null,
+        };
         break;
       }
       case "VWMA": {
         const vwmaData = result?.data?.vwma ?? [];
         indicatorDataRef.current[id] = { result, rows };
-        latestIndicatorValuesRef.current[id] = { vwma: vwmaData.length > 0 ? vwmaData[vwmaData.length - 1]?.value : null };
+        latestIndicatorValuesRef.current[id] = {
+          vwma:
+            vwmaData.length > 0 ? vwmaData[vwmaData.length - 1]?.value : null,
+        };
         break;
       }
       case "TMA": {
         const tmaData = result?.data?.tma ?? [];
         indicatorDataRef.current[id] = { result, rows };
-        latestIndicatorValuesRef.current[id] = { tma: tmaData.length > 0 ? tmaData[tmaData.length - 1]?.value : null };
+        latestIndicatorValuesRef.current[id] = {
+          tma: tmaData.length > 0 ? tmaData[tmaData.length - 1]?.value : null,
+        };
         break;
       }
       case "RMA": {
         const rmaData = result?.data?.rma ?? [];
         indicatorDataRef.current[id] = { result, rows };
-        latestIndicatorValuesRef.current[id] = { rma: rmaData.length > 0 ? rmaData[rmaData.length - 1]?.value : null };
+        latestIndicatorValuesRef.current[id] = {
+          rma: rmaData.length > 0 ? rmaData[rmaData.length - 1]?.value : null,
+        };
         break;
       }
       case "ATR": {
         indicatorDataRef.current[id] = { result, rows };
         const atr = result?.data?.atr ?? [];
-        latestIndicatorValuesRef.current[id] = { atr: atr[atr.length - 1]?.value };
+        latestIndicatorValuesRef.current[id] = {
+          atr: atr[atr.length - 1]?.value,
+        };
         break;
       }
       case "MFI": {
         const mfiData = result?.data?.mfi ?? [];
         indicatorDataRef.current[id] = { result, rows };
-        latestIndicatorValuesRef.current[id] = { mfi: mfiData[mfiData.length - 1]?.value ?? null };
+        latestIndicatorValuesRef.current[id] = {
+          mfi: mfiData[mfiData.length - 1]?.value ?? null,
+        };
         break;
       }
       case "PSAR": {
         indicatorDataRef.current[id] = { result, rows };
-        latestIndicatorValuesRef.current[id] = { psar: result?.[result.length - 1]?.value };
+        latestIndicatorValuesRef.current[id] = {
+          psar: result?.[result.length - 1]?.value,
+        };
         break;
       }
       case "EOM": {
         const eomData = result?.data?.eom ?? [];
         indicatorDataRef.current[id] = { result, rows };
-        latestIndicatorValuesRef.current[id] = { eom: eomData[eomData.length - 1]?.value };
+        latestIndicatorValuesRef.current[id] = {
+          eom: eomData[eomData.length - 1]?.value,
+        };
         break;
       }
       case "KC": {
@@ -396,7 +458,9 @@ export default function useChartFunctions({
       case "UO": {
         const uoData = result?.data?.uo ?? [];
         indicatorDataRef.current[id] = { result, rows };
-        latestIndicatorValuesRef.current[id] = { uo: uoData[uoData.length - 1]?.value ?? null };
+        latestIndicatorValuesRef.current[id] = {
+          uo: uoData[uoData.length - 1]?.value ?? null,
+        };
         break;
       }
       case "PVI": {
@@ -442,7 +506,9 @@ export default function useChartFunctions({
       case "TRIX": {
         const trixData = result?.data?.trix ?? [];
         indicatorDataRef.current[id] = { result, rows };
-        latestIndicatorValuesRef.current[id] = { trix: trixData[trixData.length - 1]?.value ?? null };
+        latestIndicatorValuesRef.current[id] = {
+          trix: trixData[trixData.length - 1]?.value ?? null,
+        };
         break;
       }
       case "FT": {
@@ -501,13 +567,17 @@ export default function useChartFunctions({
       case "CHOP": {
         const chopData = result?.data?.chopLine ?? [];
         indicatorDataRef.current[id] = { result, rows };
-        latestIndicatorValuesRef.current[id] = { chop: chopData[chopData.length - 1]?.value ?? null };
+        latestIndicatorValuesRef.current[id] = {
+          chop: chopData[chopData.length - 1]?.value ?? null,
+        };
         break;
       }
       case "STDDEV": {
         const stddevData = result?.data ?? [];
         indicatorDataRef.current[id] = { result, rows };
-        latestIndicatorValuesRef.current[id] = { value: stddevData.at(-1)?.value };
+        latestIndicatorValuesRef.current[id] = {
+          value: stddevData.at(-1)?.value,
+        };
         break;
       }
       case "BB": {
@@ -553,9 +623,6 @@ export default function useChartFunctions({
     }
   }
 
-
-
-
   return {
     // fetchDataByCurrency,
     fetchIndicatorData,
@@ -571,6 +638,11 @@ async function fetchDataForIndicators(
   toDate,
   socketRef,
 ) {
+  const isValidChartValue = (v) => {
+    const num = Number(v);
+
+    return Number.isFinite(num) && Math.abs(num) < 90071992547409;
+  };
   try {
     const response = await new Promise((resolve, reject) => {
       if (!socketRef.current) return reject(new Error("No socket"));
@@ -581,7 +653,7 @@ async function fetchDataForIndicators(
         fromDate: fromDate,
         toDate: toDate,
         type,
-        candles, 
+        candles,
       });
       socketRef.current?.once("indicatorDetailsResponse", (data) => {
         console.log(data, "===========================");
@@ -791,6 +863,28 @@ async function fetchDataForIndicators(
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
                   value: d.baseline,
+                  close: d.close, // ✅ needed for all color logic
+                  upperChannel: d.upperChannel, // ✅ needed for baseline color
+                  lowerChannel: d.lowerChannel, // ✅ needed for baseline color
+                })) ?? [],
+
+            ssl1:
+              response?.data
+                ?.filter((d) => d.ssl1 != null && d.time != null)
+                .map((d) => ({
+                  time: Number(d.time) + IST_OFFSET,
+                  value: d.ssl1,
+                  close: d.close, // ✅ needed for ssl1 color
+                })) ?? [],
+
+            ssl2:
+              response?.data
+                ?.filter((d) => d.ssl2 != null && d.time != null)
+                .map((d) => ({
+                  time: Number(d.time) + IST_OFFSET,
+                  value: d.ssl2,
+                  close: d.close, // ✅ needed for ssl2 color
+                  atr: d.atr, // ✅ needed for buy_atr / sell_atr
                 })) ?? [],
 
             upperChannel:
@@ -807,22 +901,6 @@ async function fetchDataForIndicators(
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
                   value: d.lowerChannel,
-                })) ?? [],
-
-            ssl1:
-              response.data
-                ?.filter((d) => d.ssl1 != null && d.time != null)
-                .map((d) => ({
-                  time: Number(d.time) + IST_OFFSET,
-                  value: d.ssl1,
-                })) ?? [],
-
-            ssl2:
-              response.data
-                ?.filter((d) => d.ssl2 != null && d.time != null)
-                .map((d) => ({
-                  time: Number(d.time) + IST_OFFSET,
-                  value: d.ssl2,
                 })) ?? [],
 
             atrUpper:
@@ -1243,15 +1321,18 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             volume:
-              response?.data?.map((d) => ({
-                time: Number(d.time) + IST_OFFSET,
-                value: Number(d.volume),
-                color: d.color || "#26A69A",
-              })) ?? [],
+              response?.data
+                ?.filter((d) => d.volume != null && isValidChartValue(d.volume))
+                .map((d) => ({
+                  time: Number(d.time) + IST_OFFSET,
+                  value: Number(d.volume),
+                })) ?? [],
 
             volumeMA:
               response?.data
-                ?.filter((d) => d.volumeMA != null)
+                ?.filter(
+                  (d) => d.volumeMA != null && isValidChartValue(d.volumeMA),
+                )
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
                   value: Number(d.volumeMA),
@@ -1500,7 +1581,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             r:
-              response.data?.series
+              response.data
                 ?.filter((d) => d.williamPercentR != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1677,7 +1758,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             kLine:
-              response.data.candles
+              response?.data
                 ?.filter((d) => d.stochRsiK != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1685,7 +1766,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             dLine:
-              response.data.candles
+              response?.data
                 ?.filter((d) => d.stochRsiD != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
