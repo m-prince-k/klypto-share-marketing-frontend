@@ -35,9 +35,9 @@ export default function SSLPlot({
 
   /* ================= PINE SCRIPT COLOR LOGIC ================= */
 
-  const BULLISH = "#00c3ff";
-  const BEARISH = "#ff0062";
-  const NEUTRAL  = "#666666";
+  const BULLISH = indicatorStyle?.SSL_HYBRID?.candles?.palette?.up || "#00c3ff";
+  const BEARISH = indicatorStyle?.SSL_HYBRID?.candles?.palette?.down || "#ff0062";
+  const NEUTRAL = indicatorStyle?.SSL_HYBRID?.candles?.palette?.neutral || "#666666";
 
   // baseline_color = close > upperk ? bullish : close < lowerk ? bearish : neutral
   const getBaselineColor = (close, upperChannel, lowerChannel) => {

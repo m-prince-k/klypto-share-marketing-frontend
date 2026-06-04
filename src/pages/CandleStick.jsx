@@ -59,6 +59,10 @@ import { io } from "socket.io-client";
 import { toast } from "react-toastify";
 import useAlerts from "../util/useAlerts";
 import { Link } from "react-router-dom";
+import CodeEditorPanel from "../components/layout/CodeEditorPanel";
+import OIAnalytics from "../components/tradingModals/OIAnalytics";
+import { FaPlay } from "react-icons/fa";
+import Swal from "sweetalert2";
 
 export default function Candlestick() {
   const chartRef = useRef();
@@ -74,8 +78,173 @@ export default function Candlestick() {
   const fetchedIndicatorsRef = useRef(new Set());
   const socketRef = useRef(null);
   const chartIndicatorHandlerRef = useRef(null);
+  const customScriptSeriesRef = useRef(null);
+  const pyodideRef = useRef(null);
+  const [isDeployed, setIsDeployed] = useState(false);
+  const [isPyodideReady, setIsPyodideReady] = useState(false);
 
-  const { matchedCoins, addAlert, clearAllCoins } = useAlerts();
+  useEffect(() => {
+    // Load Pyodide WebAssembly script dynamically
+    if (window.loadPyodide) {
+      if (!pyodideRef.current) {
+        window.loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.25.0/full/" })
+          .then((pyodide) => {
+            pyodideRef.current = pyodide;
+            setIsPyodideReady(true);
+            pyodide.loadPackage("pandas").catch(() => {});
+          });
+      }
+    } else {
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js";
+      script.onload = () => {
+        window.loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.25.0/full/" })
+          .then((pyodide) => {
+            pyodideRef.current = pyodide;
+            setIsPyodideReady(true);
+            pyodide.loadPackage("pandas").catch(() => {});
+          });
+      };
+      document.head.appendChild(script);
+    }
+  }, []);
+
+  const handleClearCode = useCallback(() => {
+    if (customScriptSeriesRef.current && chartRef.current) {
+       if (Array.isArray(customScriptSeriesRef.current)) {
+           customScriptSeriesRef.current.forEach(series => {
+              try { chartRef.current.removeSeries(series); } catch(e){}
+           });
+       } else {
+           try { chartRef.current.removeSeries(customScriptSeriesRef.current); } catch(e){}
+       }
+       customScriptSeriesRef.current = null;
+    }
+    setIsDeployed(false);
+  }, []);
+
+  const handleDeployCode = useCallback(async (code) => {
+    if (!chartRef.current) return;
+    
+    // 1. Clear previous
+    handleClearCode();
+
+    if (!pyodideRef.current || !isPyodideReady) {
+       Swal.fire({
+          icon: 'warning',
+          title: 'Not Ready',
+          text: 'The Python compiler is downloading in the background. Please wait a few seconds and try again.',
+          background: '#1e222d',
+          color: '#d1d4dc'
+       });
+       return;
+    }
+
+    if (!code || code.trim() === "") {
+       Swal.fire({
+          icon: 'warning',
+          title: 'Empty Code',
+          text: 'Please write some code before deploying.',
+          background: '#1e222d',
+          color: '#d1d4dc'
+       });
+       return;
+    }
+
+    // 2. Plot using real Python WebAssembly engine
+    try {
+      const closes = candlesRef?.current?.map(c => c.close) || [];
+      if (closes.length < 4) {
+         Swal.fire({ icon: 'warning', title: 'Insufficient Data', text: 'Not enough candle data to plot indicator.', background: '#1e222d', color: '#d1d4dc' });
+         return;
+      }
+      
+      toast.info("Compiling Python script...", { autoClose: 2000, toastId: "compiling" });
+
+      const pyodide = pyodideRef.current;
+      
+      // Inject close prices as a global Javascript array into Python
+      pyodide.globals.set("close", closes);
+
+      // Setup the plotting bridge to catch the output
+      const pythonSetup = `
+import js
+_plotted_series = []
+
+def plot(name, data):
+    import builtins
+    if isinstance(data, list):
+        _plotted_series.append({"name": name, "data": data})
+    else:
+        # Automatically handle pandas Series / numpy arrays
+        try:
+            _plotted_series.append({"name": name, "data": data.tolist()})
+        except:
+            pass
+`;
+      await pyodide.runPythonAsync(pythonSetup);
+      
+      // Execute User's actual code
+      await pyodide.runPythonAsync(code);
+
+      // Fetch the plotted results back into Javascript
+      const plottedSeriesProxy = pyodide.globals.get("_plotted_series");
+      const plottedSeries = plottedSeriesProxy ? plottedSeriesProxy.toJs() : [];
+
+      if (!plottedSeries || plottedSeries.length === 0) {
+         Swal.fire({ icon: 'warning', title: 'No Plot Data', text: 'Script executed successfully but did not call plot(). Make sure you end your script with plot("Name", data)', background: '#1e222d', color: '#d1d4dc' });
+         return;
+      }
+
+      // Map Python list values back to Unix timestamps and plot each series
+      customScriptSeriesRef.current = [];
+      const colors = ["#2962ff", "#f23645", "#22ab94", "#ff9800", "#9c27b0", "#e91e63"];
+
+      plottedSeries.forEach((seriesMap, seriesIndex) => {
+          const seriesName = seriesMap.get("name") || `Indicator ${seriesIndex + 1}`;
+          const seriesDataArray = seriesMap.get("data");
+
+          const indicatorData = candlesRef.current
+            .map((candle, index) => {
+               const val = seriesDataArray[index];
+               return {
+                 time: candle.time,
+                 value: typeof val === "number" ? val : null,
+               };
+            })
+            .filter((x) => x.value !== null && !isNaN(x.value));
+
+          if (indicatorData.length > 0) {
+            const lineSeries = chartRef.current.addSeries(LineSeries, {
+              title: seriesName,
+              color: colors[seriesIndex % colors.length],
+              lineWidth: 2,
+            });
+            
+            lineSeries.setData(indicatorData);
+            customScriptSeriesRef.current.push(lineSeries);
+          }
+      });
+
+      if (customScriptSeriesRef.current.length > 0) {
+        setIsDeployed(true);
+        toast.success("Python compiled and plotted successfully!", { toastId: "script-success" });
+      } else {
+        toast.error("No valid indicator data calculated.", { toastId: "script-error" });
+      }
+    } catch (err) {
+      console.error("Pyodide execution error:", err);
+      Swal.fire({
+          icon: 'error',
+          title: 'Python Execution Error',
+          text: err.message,
+          background: '#1e222d',
+          color: '#d1d4dc'
+      });
+    }
+  }, [handleClearCode, isPyodideReady]);
+
+  const { matchedCoins, addAlert, clearAllCoins, scanner, removeCoin } = useAlerts();
 
   const [isWatchlistOpen, setIsWatchlistOpen] = useState(true);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -97,6 +266,8 @@ export default function Candlestick() {
   const [isMarketOpen, setIsMarketOpen] = useState(false);
   const [liveOhlcv, setLiveOhlcv] = useState({});
   const [liveIndicatorData, setLiveIndicatorData] = useState({});
+  const [isCodeEditorOpen, setIsCodeEditorOpen] = useState(false);
+  const [editorCode, setEditorCode] = useState("import pandas as pd\n\n# Example user code\n");
 
   useEffect(() => {
     const checkMarketStatus = () => {
@@ -1324,7 +1495,7 @@ export default function Candlestick() {
               }}
             >
               <div style={{ width: "300px", height: "100%" }}>
-                {activeTab === "Alerts" && (
+                <div style={{ display: activeTab === "Alerts" ? "block" : "none", height: "100%" }}>
                   <LeftAlertListing
                     onClose={() => setIsWatchlistOpen(false)}
                     alertResult={matchedCoins}
@@ -1332,15 +1503,15 @@ export default function Candlestick() {
                     setSelectedCurrency={setSelectedCurrency}
                     setActiveTab={setActiveTab}
                   />
-                )}
-                {activeTab !== "Alerts" && isWatchlistOpen && (
+                </div>
+                <div style={{ display: activeTab !== "Alerts" && isWatchlistOpen ? "block" : "none", height: "100%" }}>
                   <LeftWatchlist
                     onClose={() => setIsWatchlistOpen(false)}
                     setSelectedCurrency={setSelectedCurrency}
                     alertResult={matchedCoins}
                   />
-                )}
-                {activeTab !== "Alerts" && isDetailsOpen && (
+                </div>
+                <div style={{ display: activeTab !== "Alerts" && isDetailsOpen ? "block" : "none", height: "100%" }}>
                   <LeftDetail
                     onClose={() => setIsDetailsOpen(false)}
                     selectedCurrency={selectedCurrency}
@@ -1354,7 +1525,7 @@ export default function Candlestick() {
                     matchedCoins={matchedCoins}
                     removeCoin={removeCoin}
                   />
-                )}
+                </div>
               </div>
             </div>
 
@@ -1374,7 +1545,7 @@ export default function Candlestick() {
                 transition: "border-color 0.3s ease",
               }}
             >
-              <ChartTabs activeTab={activeTab} setActiveTab={setActiveTab} />
+              <ChartTabs activeTab={activeTab} setActiveTab={setActiveTab} onCodeClick={() => setIsCodeEditorOpen(prev => !prev)} />
 
               <div
                 style={{
@@ -1411,6 +1582,9 @@ export default function Candlestick() {
                     addAlert={addAlert}
                   />
                 </div>
+
+                <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+                  <div className="chart-and-panes-wrapper" style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0, overflow: "hidden", position: "relative" }}>
 
                 {/* main chart */}
                 <div
@@ -1832,6 +2006,89 @@ export default function Candlestick() {
 
                 {/* Render Indicators */}
                 <React.Fragment>{renderIndicators()}</React.Fragment>
+
+                {/* ZOOM OVERLAY */}
+                <div className="chart-zoom-overlay">
+                  <style>{`
+                    .chart-and-panes-wrapper .chart-zoom-overlay {
+                       opacity: 0;
+                       visibility: hidden;
+                       transition: all 0.2s ease;
+                    }
+                    .chart-and-panes-wrapper:hover .chart-zoom-overlay {
+                       opacity: 1;
+                       visibility: visible;
+                    }
+                    .chart-zoom-overlay {
+                       position: absolute;
+                       bottom: 24px;
+                       left: 50%;
+                       transform: translateX(-50%);
+                       z-index: 50;
+                       display: flex;
+                       align-items: center;
+                       gap: 8px;
+                       padding: 6px 10px;
+                       background: rgba(19, 23, 34, 0.7);
+                       backdrop-filter: blur(4px);
+                       border-radius: 8px;
+                       border: 1px solid #2a2e39;
+                    }
+                    .chart-zoom-overlay .zoom-btn {
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      width: 32px;
+                      height: 32px;
+                      border-radius: 6px;
+                      border: none;
+                      background: transparent;
+                      color: #d1d4dc;
+                      cursor: pointer;
+                      transition: all 0.15s ease;
+                    }
+                    .chart-zoom-overlay .zoom-btn:hover {
+                      background: #2a2e39;
+                      color: #ffffff;
+                    }
+                    .chart-zoom-overlay .zoom-btn:active {
+                      transform: scale(0.95);
+                    }
+                    .chart-zoom-overlay .zoom-divider {
+                      width: 1px;
+                      height: 18px;
+                      background: #2a2e39;
+                    }
+                  `}</style>
+                  <button onClick={zoomOut} title="Zoom out" className="zoom-btn">
+                    <LuCircleMinus size={18} />
+                  </button>
+                  <div className="zoom-divider" />
+                  <button onClick={resetZoom} title="Reset zoom" className="zoom-btn">
+                    <RiResetRightLine size={18} />
+                  </button>
+                  <div className="zoom-divider" />
+                  <button onClick={zoomIn} title="Zoom in" className="zoom-btn">
+                    <LuCirclePlus size={18} />
+                  </button>
+                </div>
+
+                  </div>
+                  
+                  {/* CODE EDITOR SIDE PANEL */}
+                  {isCodeEditorOpen && (
+                    <CodeEditorPanel 
+                      onClose={() => setIsCodeEditorOpen(false)} 
+                      onDeploy={handleDeployCode} 
+                      onClear={handleClearCode}
+                      onEdit={() => setIsDeployed(false)}
+                      editorCode={editorCode} 
+                      setEditorCode={setEditorCode} 
+                      isDeployed={isDeployed}
+                    />
+                  )}
+
+                </div>  
               </div>
 
               <div
@@ -1866,6 +2123,26 @@ export default function Candlestick() {
                   key={selectedCurrency?.name}
                   selectedCurrency={selectedCurrency}
                 />
+              </div>
+
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  borderLeft: isWatchlistOpen ? "1px solid #2a2e39" : "none",
+                  borderRight: "1px solid #2a2e39",
+                  display: activeTab === "OI Analytics" ? "flex" : "none",
+                  flexDirection: "column",
+                  height: "100%",
+                  overflow: "hidden",
+                }}
+              >
+                {activeTab === "OI Analytics" && (
+                  <OIAnalytics
+                    key={selectedCurrency?.name}
+                    selectedCurrency={selectedCurrency}
+                  />
+                )}
               </div>
             </div>
 
@@ -1906,111 +2183,22 @@ export default function Candlestick() {
           onClose={() => setShowSourcePanel(false)}
         />
       </section>
-      <section className="market-trading-part">
-        <div className="container p-0 m-0">
-          <div className="row">
-            <div className="d-flex align-items-center position-relative">
-              <div className="mx-auto d-flex align-items-center gap-2">
-                {/* Shared style */}
-                <style>{`
-      .zoom-btn {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        font-weight: 600;
-        font-size: 0.8rem;
-        letter-spacing: 0.01em;
-        padding: 6px 14px;
-        border-radius: 8px;
-        border: 1px solid #2e3347;
-        background: #1e2330;
-        color: #94a3b8;
-        cursor: pointer;
-        transition: all 0.18s ease;
-      }
-      .zoom-btn svg {
-        transition: transform 0.25s ease;
-      }
-      .zoom-btn:hover {
-        background: #262d3f;
-        border-color: #3d4560;
-        color: #e2e8f0;
-      }
-      .zoom-btn:hover svg {
-        transform: scale(1.15);
-      }
-      .zoom-btn:active {
-        transform: scale(0.97);
-      }
-      .zoom-btn-reset {
-        background: #2d3748;
-        border-color: #4a5568;
-        color: #e2e8f0;
-      }
-      .zoom-btn-reset:hover {
-        background: #374151;
-        border-color: #6b7280;
-        color: #fff;
-      }
-      .zoom-btn-reset:hover svg {
-        transform: rotate(360deg);
-        transition: transform 0.5s ease;
-      }
-      .zoom-divider {
-        width: 1px;
-        height: 22px;
-        background: #2e3347;
-      }
-    `}</style>
-
-                {/* Zoom In */}
-                <button onClick={zoomIn} title="Zoom in" className="zoom-btn">
-                  <LuCirclePlus size={14} />
-                  Zoom In
-                </button>
-
-                <div className="zoom-divider" />
-
-                {/* Zoom Out */}
-                <button onClick={zoomOut} title="Zoom out" className="zoom-btn">
-                  <LuCircleMinus size={14} />
-                  Zoom Out
-                </button>
-
-                <div className="zoom-divider" />
-
-                {/* Reset */}
-                <button
-                  onClick={resetZoom}
-                  title="Reset zoom"
-                  className="zoom-btn zoom-btn-reset"
-                >
-                  <RiResetRightLine size={14} />
-                  Reset
-                </button>
-              </div>
-            </div>
-
-            {/* --------------indicator sub part property show in modal-------------- */}
-            <IndicatorPropertyDialog
-              setIndicatorProperty={setIndicatorProperty}
-              indicatorProperty={indicatorProperty}
-              activeBarIndicator={activeBarIndicator}
-              setIndicatorConfigs={setIndicatorConfigs}
-              indicatorConfigs={indicatorConfigs}
-              indicatorStyle={indicatorStyle}
-              setIndicatorStyle={setIndicatorStyle}
-              indicatorSeriesRef={indicatorSeriesRef}
-              selectedCurrency={selectedCurrency}
-              timeframeValue={timeframeValue}
-              latestIndicatorValuesRef={latestIndicatorValuesRef}
-              fromDate={fromDate}
-              toDate={toDate}
-              setIndicatorLoading={setIndicatorLoading}
-            />
-          </div>
-        </div>
-      </section>
+      <IndicatorPropertyDialog
+        setIndicatorProperty={setIndicatorProperty}
+        indicatorProperty={indicatorProperty}
+        activeBarIndicator={activeBarIndicator}
+        setIndicatorConfigs={setIndicatorConfigs}
+        indicatorConfigs={indicatorConfigs}
+        indicatorStyle={indicatorStyle}
+        setIndicatorStyle={setIndicatorStyle}
+        indicatorSeriesRef={indicatorSeriesRef}
+        selectedCurrency={selectedCurrency}
+        timeframeValue={timeframeValue}
+        latestIndicatorValuesRef={latestIndicatorValuesRef}
+        fromDate={fromDate}
+        toDate={toDate}
+        setIndicatorLoading={setIndicatorLoading}
+      />
     </>
   );
 }

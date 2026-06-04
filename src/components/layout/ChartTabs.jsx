@@ -1,8 +1,8 @@
 import React, { useState } from "react";
+import { FaCode, FaLaptopCode } from "react-icons/fa6";
 import { FiMaximize, FiZap } from "react-icons/fi";
 
-const ChartTabs = ({ activeTab, setActiveTab }) => {
-
+const ChartTabs = ({ activeTab, setActiveTab, onCodeClick }) => {
   const styles = {
     container: {
       display: "flex",
@@ -13,7 +13,8 @@ const ChartTabs = ({ activeTab, setActiveTab }) => {
       backgroundColor: "#131722",
       borderBottom: "1px solid #2a2e39",
       color: "#d1d4dc",
-      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      fontFamily:
+        "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     },
     tabsGroup: {
       display: "flex",
@@ -70,20 +71,20 @@ const ChartTabs = ({ activeTab, setActiveTab }) => {
       backgroundColor: "transparent",
       color: "#787b86",
       cursor: "pointer",
-    }
+    },
   };
 
-  const tabs = ["Chart", "Overview", "Option Chain", "Alerts"];
+  const tabs = ["Chart", "Overview", "Option Chain", "Alerts","OI Analytics"];
 
   return (
     <div style={styles.container}>
       <div style={styles.tabsGroup}>
-        {tabs.map(tab => (
-          <div 
+        {tabs.map((tab) => (
+          <div
             key={tab}
             style={{
               ...styles.tab,
-              ...(activeTab === tab ? styles.tabActive : {})
+              ...(activeTab === tab ? styles.tabActive : {}),
             }}
             onClick={() => setActiveTab(tab)}
           >
@@ -94,16 +95,22 @@ const ChartTabs = ({ activeTab, setActiveTab }) => {
       </div>
 
       <div style={styles.actionsGroup}>
-        <button 
+        <button
           style={styles.scalperBtn}
-          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "rgba(124, 58, 237, 0.1)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
+          onClick={onCodeClick}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "rgba(124, 58, 237, 0.1)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "transparent";
+          }}
         >
-          <FiZap /> SCALPER MODE
+          <FaCode />
+          CODE EDITOR
         </button>
-        <button style={styles.iconBtn}>
+        {/* <button style={styles.iconBtn}>
           <FiMaximize size={14} />
-        </button>
+        </button> */}
       </div>
     </div>
   );

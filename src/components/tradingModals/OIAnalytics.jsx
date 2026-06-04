@@ -1,0 +1,646 @@
+import React, { useEffect, useState } from "react";
+import { Bar } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  Title,
+  Tooltip,
+  Legend,
+} from "chart.js";
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  Title,
+  Tooltip,
+  Legend,
+);
+import socket from "../../services/socket";
+import apiService from "../../services/apiServices";
+import axios from "axios";
+
+const customDataLabelsPlugin = {
+  id: 'customDataLabels',
+  afterDatasetsDraw(chart) {
+    const { ctx } = chart;
+    ctx.font = 'bold 11px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    
+    chart.data.datasets.forEach((dataset, i) => {
+      if (dataset.type === 'line') return;
+      
+      const meta = chart.getDatasetMeta(i);
+      meta.data.forEach((bar, index) => {
+        const dataVal = dataset.data[index];
+        if (dataVal > 0) {
+          ctx.fillStyle = dataset.backgroundColor;
+          const formatted = (dataVal / 100000).toFixed(1) + 'L';
+          ctx.fillText(formatted, bar.x, bar.y - 5);
+        }
+      });
+    });
+  }
+};
+
+const spotPriceLinePlugin = {
+  id: 'spotPriceLine',
+  afterDraw(chart, args, pluginOptions) {
+    const spotPrice = pluginOptions.spotPrice;
+    if (!spotPrice) return;
+    
+    const { ctx, chartArea: { top, bottom }, scales: { x } } = chart;
+    const labels = chart.data.labels;
+    let closestIndex = -1;
+    let minDiff = Infinity;
+    
+    labels.forEach((label, i) => {
+      const parsedLabel = parseFloat(label);
+      if(isNaN(parsedLabel)) return;
+      
+      const diff = Math.abs(parsedLabel - spotPrice);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIndex = i;
+      }
+    });
+    
+    if (closestIndex !== -1) {
+      const xCoord = x.getPixelForValue(closestIndex);
+      ctx.save();
+      ctx.beginPath();
+      ctx.setLineDash([5, 5]);
+      ctx.moveTo(xCoord, top);
+      ctx.lineTo(xCoord, bottom);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#eab308';
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+};
+
+const OIAnalytics = ({ selectedCurrency }) => {
+  const [data, setData] = useState([
+  ]);
+  const [metrics, setMetrics] = useState({});
+
+  useEffect(() => {
+    console.log(
+      "OI Analytics Component Mounted. Listening for 'option-chain-data' events on socket:",
+      socket.id,
+    );
+
+    let currentSymbol = selectedCurrency?.name;
+    if (currentSymbol) {
+      // Clean symbol (e.g., in case it's an object or complex string)
+      currentSymbol =
+        typeof currentSymbol === "string" ? currentSymbol : currentSymbol.name;
+
+      const fetchAndSubscribe = async () => {
+        try {
+          const response = await apiService.get("options/chain", {
+            symbol: currentSymbol,
+          });
+          const expiries = response?.allExpiries ?? response?.expiries ?? [];
+
+          if (expiries && expiries.length > 0) {
+            const firstExpiry = expiries[0];
+            console.log(
+              `Subscribing to option chain for ${currentSymbol} at expiry ${firstExpiry}`,
+            );
+
+            socket.emit("set-filters", {
+              symbol: currentSymbol,
+              expiry: firstExpiry,
+            });
+          } else {
+            console.warn("No expiries found for symbol", currentSymbol);
+          }
+        } catch (error) {
+          console.error(
+            "Error fetching options/chain for OI Analytics:",
+            error,
+          );
+        }
+      };
+
+      const fetchHistoricalData = async () => {
+        try {
+          // Using direct axios call for port 3000
+          const res = await axios.get(
+            "http://192.168.1.13:3000/api/historical-data",
+            {
+              params: { symbol: currentSymbol },
+            },
+          );
+          const responseData = res.data;
+
+          if (
+            responseData &&
+            responseData.data &&
+            Array.isArray(responseData.data)
+          ) {
+            console.log("Historical Data:", responseData.data);
+
+            // Group the flat CE/PE array by strike_price
+            const grouped = {};
+            let highestCall = { strike: "-", value: 0 };
+            let highestPut = { strike: "-", value: 0 };
+            let totalCallOI = 0;
+            let totalPutOI = 0;
+
+            responseData.data.forEach((item) => {
+              const strike = Number(item.strike_price);
+              if (!grouped[strike]) {
+                grouped[strike] = {
+                  strikePrice: strike,
+                  callOI: 0,
+                  putOI: 0,
+                  pcr: 0,
+                };
+              }
+
+              const oiValue = Number(item.oi || 0);
+              if (item.option_type === "CE") {
+                grouped[strike].callOI = oiValue;
+                totalCallOI += oiValue;
+                if (oiValue > highestCall.value) {
+                  highestCall = { strike: `${strike} CE`, value: oiValue };
+                }
+              } else if (item.option_type === "PE") {
+                grouped[strike].putOI = oiValue;
+                totalPutOI += oiValue;
+                if (oiValue > highestPut.value) {
+                  highestPut = { strike: `${strike} PE`, value: oiValue };
+                }
+              }
+            });
+
+            // Calculate PCR (Put OI / Call OI)
+            Object.values(grouped).forEach((g) => {
+              g.pcr =
+                g.callOI > 0 ? Number((g.putOI / g.callOI).toFixed(2)) : 0;
+            });
+
+            const overallPCR =
+              totalCallOI > 0 ? (totalPutOI / totalCallOI).toFixed(2) : 0;
+
+            // Set basic metrics for historical view
+            setMetrics((prev) => ({
+              ...prev,
+              highestCallOI: {
+                strike: highestCall.strike,
+                value: (highestCall.value / 100000).toFixed(1) + "L",
+              },
+              highestPutOI: {
+                strike: highestPut.strike,
+                value: (highestPut.value / 100000).toFixed(1) + "L",
+              },
+              totalOICE: (totalCallOI / 100000).toFixed(2) + " L",
+              totalOIPE: (totalPutOI / 100000).toFixed(2) + " L",
+              pcrOI: overallPCR,
+              expiryDate: responseData.data[0]?.expiry_date || "-",
+              spotPrice: responseData.data[0]?.ltp || prev.spotPrice || "-",
+            }));
+
+            const formattedHistorical = Object.values(grouped).sort(
+              (a, b) => a.strikePrice - b.strikePrice,
+            );
+            console.log(
+              "Mapped Data for Chart (Historical):",
+              formattedHistorical,
+            );
+
+            setData((prev) => (prev.length === 0 ? formattedHistorical : prev)); // Only set if websocket hasn't fired yet
+          }
+        } catch (error) {
+          console.error("Error fetching historical data:", error);
+        }
+      };
+
+      fetchAndSubscribe();
+      fetchHistoricalData();
+    }
+
+    const handleOptionChainData = (response) => {
+      console.log("Total Records:", response.totalRecords);
+      console.log("Live Option Chain:", response);
+
+      if (response && response.data) {
+        // Map the backend data to ensure Recharts can read the keys properly
+        let formattedData = [];
+
+        // Check if the live data comes as flat array (like historical) or grouped
+        if (response.data.length > 0 && response.data[0].option_type) {
+          const grouped = {};
+          response.data.forEach((item) => {
+            const strike = Number(item.strike_price || item.strike);
+            if (!grouped[strike])
+              grouped[strike] = {
+                strikePrice: strike,
+                callOI: 0,
+                putOI: 0,
+                pcr: 0,
+              };
+
+            if (item.option_type === "CE")
+              grouped[strike].callOI = Number(item.oi || 0);
+            if (item.option_type === "PE")
+              grouped[strike].putOI = Number(item.oi || 0);
+          });
+          Object.values(grouped).forEach((g) => {
+            g.pcr = g.callOI > 0 ? Number((g.putOI / g.callOI).toFixed(2)) : 0;
+          });
+          formattedData = Object.values(grouped).sort(
+            (a, b) => a.strikePrice - b.strikePrice,
+          );
+        } else {
+          // Pre-grouped data fallback
+          formattedData = response.data.map((item) => ({
+            strikePrice:
+              item.strikePrice || item.strike || item.STRIKE_PRC || 0,
+            callOI: item.callOI || item.CE_OI || item.ce_oi || 0,
+            putOI: item.putOI || item.PE_OI || item.pe_oi || 0,
+            pcr: item.pcr || item.PCR || 0,
+          }));
+        }
+
+        setData(formattedData);
+      }
+
+      if (response && response.metrics) {
+        setMetrics((prev) => ({ ...prev, ...response.metrics }));
+      }
+    };
+
+    socket.on("option-chain-data", handleOptionChainData);
+
+    return () => {
+      socket.off("option-chain-data", handleOptionChainData);
+    };
+  }, [selectedCurrency]);
+
+  const styles = {
+    container: {
+      display: "flex",
+      flexDirection: "column",
+      height: "100%",
+      backgroundColor: "#131722",
+      color: "#d1d4dc",
+      padding: "20px",
+      fontFamily:
+        "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      overflowY: "auto",
+    },
+    headerRow: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: "20px",
+    },
+    title: {
+      fontSize: "1.2rem",
+      fontWeight: 600,
+      color: "#ffffff",
+      textTransform: "uppercase",
+      letterSpacing: "0.5px",
+    },
+    rightInfo: {
+      display: "flex",
+      gap: "20px",
+      alignItems: "center",
+      backgroundColor: "#1e222d",
+      padding: "8px 16px",
+      borderRadius: "6px",
+      border: "1px solid #2a2e39",
+    },
+    metricsGrid: {
+      display: "grid",
+      gridTemplateColumns: "repeat(7, 1fr)",
+      gap: "12px",
+      marginBottom: "24px",
+    },
+    metricCard: {
+      backgroundColor: "#1e222d",
+      border: "1px solid #2a2e39",
+      borderRadius: "8px",
+      padding: "16px 12px",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "8px",
+    },
+    metricLabel: {
+      fontSize: "0.8rem",
+      color: "#787b86",
+      fontWeight: 500,
+    },
+    metricValue: {
+      fontSize: "1.1rem",
+      fontWeight: 600,
+      color: "#ffffff",
+    },
+    chartContainer: {
+      width: "100%",
+      minHeight: "500px",
+      backgroundColor: "#181a25",
+      border: "1px solid #2a2e39",
+      borderRadius: "8px",
+      padding: "20px",
+      marginBottom: "24px",
+      boxSizing: "border-box",
+    },
+    chartHeader: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: "20px",
+    },
+    dominantBadge: (type) => ({
+      padding: "6px 12px",
+      borderRadius: "4px",
+      border: `1px solid ${type === "CALL" ? "#22ab94" : "#f23645"}`,
+      color: type === "CALL" ? "#22ab94" : "#f23645",
+      fontSize: "0.75rem",
+      fontWeight: 600,
+      letterSpacing: "0.5px",
+    }),
+    bottomGrid: {
+      display: "grid",
+      gridTemplateColumns: "repeat(3, 1fr)",
+      gap: "16px",
+    },
+    bottomCard: {
+      backgroundColor: "#1e222d",
+      border: "1px solid #2a2e39",
+      borderRadius: "8px",
+      padding: "20px",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: "10px",
+    },
+  };
+
+  // Custom Tooltip for Recharts
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div
+          style={{
+            backgroundColor: "#1e222d",
+            border: "1px solid #2a2e39",
+            padding: "12px",
+            borderRadius: "6px",
+          }}
+        >
+          <p style={{ margin: "0 0 8px 0", fontWeight: 600, color: "#fff" }}>
+            Strike: {label}
+          </p>
+          {payload.map((entry, index) => (
+            <p
+              key={index}
+              style={{
+                color: entry.color,
+                margin: "4px 0",
+                fontSize: "0.9rem",
+              }}
+            >
+              {entry.name}: {entry.value}
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <div style={styles.container}>
+      {/* Header */}
+      <div style={styles.headerRow}>
+        <div style={styles.title}>Option Chain - Bar Graph View</div>
+        <div style={styles.rightInfo}>
+          <span style={{ fontWeight: 600 }}>NIFTY 50</span>
+          <span style={{ color: "#22ab94", fontWeight: 600 }}>
+            {metrics?.spotPrice || "-"}
+          </span>
+        </div>
+      </div>
+
+      {/* Top Metrics Grid */}
+      <div style={styles.metricsGrid}>
+        <div style={styles.metricCard}>
+          <span style={styles.metricLabel}>Spot Price</span>
+          <span style={{ ...styles.metricValue, color: "#22ab94" }}>
+            {metrics?.spotPrice || "-"}
+          </span>
+        </div>
+       
+        <div style={styles.metricCard}>
+          <span style={styles.metricLabel}>PCR (OI)</span>
+          <span style={{ ...styles.metricValue, color: "#22ab94" }}>
+            {metrics?.pcrOI || "-"}
+          </span>
+        </div>
+        {/* <div style={styles.metricCard}>
+          <span style={styles.metricLabel}>Max Pain</span>
+          <span style={styles.metricValue}>{metrics?.maxPain || "-"}</span>
+        </div> */}
+        <div style={styles.metricCard}>
+          <span style={styles.metricLabel}>Total OI (CE)</span>
+          <span style={{ ...styles.metricValue, color: "#22ab94" }}>
+            {metrics?.totalOICE || "-"}
+          </span>
+        </div>
+        <div style={styles.metricCard}>
+          <span style={styles.metricLabel}>Total OI (PE)</span>
+          <span style={{ ...styles.metricValue, color: "#f23645" }}>
+            {metrics?.totalOIPE || "-"}
+          </span>
+        </div>
+        <div style={styles.metricCard}>
+          <span style={styles.metricLabel}>Expiry Date</span>
+          <span style={styles.metricValue}>{metrics?.expiryDate || "-"}</span>
+        </div>
+      </div>
+
+      {/* Chart Section */}
+      <div style={styles.chartContainer}>
+        <div style={styles.chartHeader}>
+          <div style={styles.dominantBadge("CALL")}>CALLS DOMINANT</div>
+          <div
+            style={{ color: "#eab308", fontWeight: 600, fontSize: "0.9rem" }}
+          >
+            Spot Price: {metrics?.spotPrice || "-"}
+          </div>
+          <div style={styles.dominantBadge("PUT")}>PUTS DOMINANT</div>
+        </div>
+
+
+        <div style={{ width: "100%", height: "400px", background: "transparent" }}>
+          <div style={{ width: "100%", height: "400px" }}>
+            <Bar
+              data={{
+                labels: data.map((d) => d.strikePrice),
+                datasets: [
+                  {
+                    type: "bar",
+                    label: "Call OI",
+                    data: data.map((d) => d.callOI),
+                    backgroundColor: "#22ab94",
+                    borderRadius: 2,
+                    maxBarThickness: 20,
+                    yAxisID: "y",
+                  },
+                  {
+                    type: "bar",
+                    label: "Put OI",
+                    data: data.map((d) => d.putOI),
+                    backgroundColor: "#f23645",
+                    borderRadius: 2,
+                    maxBarThickness: 20,
+                    yAxisID: "y",
+                  },
+                  {
+                    type: "line",
+                    label: "PCR (OI)",
+                    data: data.map((d) => d.pcr),
+                    borderColor: "#7e57c2",
+                    backgroundColor: "#7e57c2",
+                    borderDash: [4, 4],
+                    pointRadius: 4,
+                    pointBackgroundColor: "#7e57c2",
+                    yAxisID: "y1",
+                    tension: 0.2,
+                  },
+                ],
+              }}
+              plugins={[customDataLabelsPlugin, spotPriceLinePlugin]}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    labels: { color: "#d1d4dc" },
+                  },
+                  tooltip: {
+                    callbacks: {
+                      label: (ctx) =>
+                        `${ctx.dataset.label}: ${ctx.dataset.type === 'line' ? ctx.parsed.y : ctx.parsed.y.toLocaleString()}`,
+                    },
+                  },
+                  spotPriceLine: {
+                    spotPrice: metrics?.spotPrice ? parseFloat(metrics.spotPrice.toString().replace(/,/g, '')) : null
+                  }
+                },
+                scales: {
+                  x: {
+                    ticks: { color: "#d1d4dc", fontSize: 12 },
+                    grid: { color: "#2a2e39" },
+                    title: {
+                      display: true,
+                      text: "Strike Price",
+                      color: "#d1d4dc",
+                    },
+                  },
+                  y: {
+                    type: "linear",
+                    position: "left",
+                    ticks: { 
+                      color: "#d1d4dc",
+                      callback: function(value) {
+                        return (value / 100000).toFixed(0) + 'L';
+                      }
+                    },
+                    grid: { color: "#2a2e39" },
+                    title: {
+                      display: true,
+                      text: "Open Interest (OI)",
+                      color: "#d1d4dc",
+                    },
+                  },
+                  y1: {
+                    type: "linear",
+                    position: "right",
+                    ticks: { color: "#d1d4dc" },
+                    grid: { drawOnChartArea: false },
+                    title: {
+                      display: true,
+                      text: "PCR (OI)",
+                      color: "#d1d4dc",
+                    },
+                  },
+                },
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Metrics Grid */}
+      <div style={styles.bottomGrid}>
+        <div style={styles.bottomCard}>
+          <span
+            style={{ color: "#22ab94", fontWeight: 600, fontSize: "0.85rem" }}
+          >
+            HIGHEST OI (CALL)
+          </span>
+          <span style={{ fontSize: "1.2rem", fontWeight: 700, color: "#fff" }}>
+            {metrics?.highestCallOI?.strike || "-"}
+          </span>
+          <span style={{ color: "#22ab94", fontWeight: 600 }}>
+            {metrics?.highestCallOI?.value || "-"}
+          </span>
+        </div>
+        <div style={styles.bottomCard}>
+          <span
+            style={{ color: "#f23645", fontWeight: 600, fontSize: "0.85rem" }}
+          >
+            HIGHEST OI (PUT)
+          </span>
+          <span
+            style={{ fontSize: "1.2rem", fontWeight: 700, color: "#f23645" }}
+          >
+            {metrics?.highestPutOI?.strike || "-"}
+          </span>
+          <span style={{ color: "#f23645", fontWeight: 600 }}>
+            {metrics?.highestPutOI?.value || "-"}
+          </span>
+        </div>
+        {/* <div style={styles.bottomCard}>
+          <span
+            style={{ color: "#eab308", fontWeight: 600, fontSize: "0.85rem" }}
+          >
+            MAX PAIN STRIKE
+          </span>
+          <span
+            style={{
+              fontSize: "1.5rem",
+              fontWeight: 700,
+              color: "#eab308",
+              marginTop: "10px",
+            }}
+          >
+            {metrics?.maxPain || "-"}
+          </span>
+        </div> */}
+      </div>
+
+      <div style={{ marginTop: "20px", fontSize: "0.75rem", color: "#787b86" }}>
+        Note: OI = Open Interest | PCR = Put Call Ratio
+      </div>
+    </div>
+  );
+};
+
+export default OIAnalytics;
