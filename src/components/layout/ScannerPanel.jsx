@@ -1,7 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { FiX, FiZap, FiTrash2, FiBell, FiBellOff } from "react-icons/fi";
 
-const INDICATORS = ["RSI"];
 const CONDITIONS = [
   { label: "Crosses Above", value: "crossesAbove" },
   { label: "Crosses Below", value: "crossesBelow" },
@@ -9,17 +8,22 @@ const CONDITIONS = [
   { label: "Less Than", value: "lessThan" },
 ];
 
-const ScannerPanel = ({ onClose, addAlert, clearAllCoins, scanner, matchedCoins, removeCoin, setSelectedCurrency }) => {
-  const [indicator, setIndicator] = useState("RSI");
-  const [condition, setCondition] = useState("crossesAbove");
-  const [value, setValue] = useState("30");
-  const [active, setActive] = useState(false);
+const ScannerPanel = ({ onClose, addAlert, clearAllCoins, scanner, matchedCoins, removeCoin, setSelectedCurrency, activeIndicators }) => {
+  const dynamicIndicators = activeIndicators && activeIndicators.length > 0 
+    ? Array.from(new Set(activeIndicators.map(ind => ind.type)))
+    : ["RSI"];
+
+  const [indicator, setIndicator] = useState(scanner?.indicator || dynamicIndicators[0] || "RSI");
+  const [condition, setCondition] = useState(scanner?.condition || "crossesAbove");
+  const [value, setValue] = useState(scanner?.value?.toString() || "30");
+  const [active, setActive] = useState(!!scanner);
 
   const handleActivate = () => {
     const numVal = parseFloat(value);
     if (isNaN(numVal)) return;
     addAlert({ indicator, condition, value: numVal });
     setActive(true);
+    onClose();
   };
 
   const handleClear = () => {
@@ -124,7 +128,7 @@ const ScannerPanel = ({ onClose, addAlert, clearAllCoins, scanner, matchedCoins,
           <div>
             <div style={s.label}>Indicator</div>
             <select style={s.select} value={indicator} onChange={e => setIndicator(e.target.value)}>
-              {INDICATORS.map(i => <option key={i} value={i}>{i}</option>)}
+              {dynamicIndicators.map(i => <option key={i} value={i}>{i}</option>)}
             </select>
           </div>
 
@@ -206,7 +210,7 @@ const ScannerPanel = ({ onClose, addAlert, clearAllCoins, scanner, matchedCoins,
                   <div style={s.badge}>{coin.symbol.substring(0, 1)}</div>
                   <div>
                     <div style={s.symbolText}>{coin.symbol}</div>
-                    <div style={s.rsiText}>RSI: {coin.rsi} · {coin.condition}</div>
+                    <div style={s.rsiText}>{coin.indicator}: {coin.rsi} · {coin.condition}</div>
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

@@ -109,6 +109,7 @@ export default function ChartHeader({
   setAlertResult,
   alertResult,
   addAlert,
+  onOpenScanner,
 }) {
   const navigate = useNavigate();
   const [timeframe, setTimeframe] = useState(60);
@@ -237,7 +238,7 @@ export default function ChartHeader({
 
         {/* Spacer */}
         <div style={{ flex: 1 }} />
-        <button title="Create Alert" onClick={() => openModal("Alerts")} style={d.btn}>
+        <button title="Create Alert" onClick={onOpenScanner} style={d.btn}>
           Create Alert
         </button>
 

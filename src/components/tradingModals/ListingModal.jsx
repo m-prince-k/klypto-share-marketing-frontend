@@ -35,11 +35,11 @@ export const ListingModal = ({
   const [searchIndicator, setSearchIndicator] = useState("");
   const [searchCurrency, setSearchCurrency] = useState("");
 
-  const TABS = ["ALL", "EQUITY", "FUTURES", "OPTIONS", "INDICES"];
+  const TABS = ["ALL", "EQUITY", "FUTURES", "INDICES"];
   const [activeTab, setActiveTab] = useState("ALL");
   const [equity, setEquity] = useState([]);
   const [futures, setFutures] = useState([]);
-  const [options, setOptions] = useState([]);
+  // const [options, setOptions] = useState([]);
   const [indices, setIndices] = useState([]);
 
   const [rsiValue, setRsiValue] = useState({
@@ -113,18 +113,18 @@ export const ListingModal = ({
   }
 
   // 🔥 Fetch Options
-  async function fetchOptions() {
-    try {
-      setLoading(true);
-      const res = await apiService.get("equity/options");
-      console.log("OPTIONS:", res);
-      setOptions(res?.data || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }
+  // async function fetchOptions() {
+  //   try {
+  //     setLoading(true);
+  //     const res = await apiService.get("equity/options");
+  //     console.log("OPTIONS:", res);
+  //     setOptions(res?.data || []);
+  //   } catch (err) {
+  //     console.error(err);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // }
 
   async function fetchIndices() {
     try {
@@ -149,7 +149,7 @@ export const ListingModal = ({
       if (activeTab === "ALL") {
         if (equity.length === 0) fetchCurrencies();
         if (futures.length === 0) fetchFutures();
-        if (options.length === 0) fetchOptions();
+        // if (options.length === 0) fetchOptions();
       }
       if (activeTab === "EQUITY" && equity.length === 0) {
         fetchCurrencies();
@@ -159,9 +159,9 @@ export const ListingModal = ({
         fetchFutures();
       }
 
-      if (activeTab === "OPTIONS" && options.length === 0) {
-        fetchOptions();
-      }
+      // if (activeTab === "OPTIONS" && options.length === 0) {
+      //   fetchOptions();
+      // }
       if (activeTab === "INDICES" && indices.length === 0) {
         fetchIndices();
       }
@@ -263,7 +263,7 @@ export const ListingModal = ({
   const mergedList = [
     ...equity.map((e) => normalize(e, "EQUITY")),
     ...futures.map((f) => normalize(f, "FUTURES")),
-    ...options.map((o) => normalize(o, "OPTIONS")),
+    // ...options.map((o) => normalize(o, "OPTIONS")),
     ...indices.map((i) => normalize(i, "INDICES")),
   ];
 
@@ -273,8 +273,8 @@ export const ListingModal = ({
       return equity.map((e) => normalize(e, "EQUITY"));
     if (activeTab === "FUTURES")
       return futures.map((f) => normalize(f, "FUTURES"));
-    if (activeTab === "OPTIONS")
-      return options.map((o) => normalize(o, "OPTIONS"));
+    // if (activeTab === "OPTIONS")
+    //   return options.map((o) => normalize(o, "OPTIONS"));
     if (activeTab === "INDICES")
       return indices.map((o) => normalize(o, "INDICES"));
     return mergedList;

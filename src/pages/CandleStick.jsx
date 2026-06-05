@@ -125,6 +125,7 @@ export default function Candlestick() {
     if (customScriptMarkersRef.current) {
        try { customScriptMarkersRef.current.setMarkers([]); } catch(e){}
     }
+    setCustomSignals([]);
     setIsDeployed(false);
   }, []);
 
@@ -156,6 +157,7 @@ export default function Candlestick() {
        return;
     }
 
+    setIsDeploying(true);
     // 2. Plot using real Python WebAssembly engine
     try {
       const closes = candlesRef?.current?.map(c => c.close) || [];
@@ -246,6 +248,7 @@ def plot_markers(markers):
 
       if (plottedMarkers && plottedMarkers.length > 0) {
           const markersToSet = [];
+          const newSignals = [];
           plottedMarkers.forEach(markerMap => {
               const idx = markerMap.get("index");
               const type = markerMap.get("type");
@@ -260,6 +263,26 @@ def plot_markers(markers):
                       text: isBuy ? "BUY" : "SELL",
                       size: 1
                   });
+
+                  let ts = candle.time;
+                  if (typeof ts === 'object' && ts.year) {
+                      ts = new Date(ts.year, ts.month - 1, ts.day).getTime();
+                  } else if (typeof ts === 'number' && ts < 10000000000) {
+                      ts = (ts - 19800) * 1000;
+                  }
+                  
+                  const d = new Date(ts);
+                  const dateStr = d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' });
+                  const timeStr = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' });
+
+                  newSignals.unshift({
+                      symbol: selectedCurrency?.name || "STOCK",
+                      name: selectedCurrency?.name || "STOCK",
+                      token: selectedCurrency?.token,
+                      signalType: isBuy ? "BUY" : "SELL",
+                      timestamp: `${dateStr} ${timeStr}`,
+                      segment: "SCRIPT",
+                  });
               }
           });
 
@@ -270,6 +293,9 @@ def plot_markers(markers):
                   customScriptMarkersRef.current.setMarkers(markersToSet);
               }
           }
+          setCustomSignals(newSignals);
+      } else {
+          setCustomSignals([]);
       }
 
       if (customScriptSeriesRef.current.length > 0 || (plottedMarkers && plottedMarkers.length > 0)) {
@@ -287,6 +313,8 @@ def plot_markers(markers):
           background: '#1e222d',
           color: '#d1d4dc'
       });
+    } finally {
+      setIsDeploying(false);
     }
   }, [handleClearCode, isPyodideReady]);
 
@@ -314,6 +342,9 @@ def plot_markers(markers):
   const [liveIndicatorData, setLiveIndicatorData] = useState({});
   const [isCodeEditorOpen, setIsCodeEditorOpen] = useState(false);
   const [editorCode, setEditorCode] = useState("import pandas as pd\n\n# Example user code\n");
+  const [openScannerTrigger, setOpenScannerTrigger] = useState(0);
+  const [customSignals, setCustomSignals] = useState([]);
+  const [isDeploying, setIsDeploying] = useState(false);
 
   useEffect(() => {
     const checkMarketStatus = () => {
@@ -393,7 +424,7 @@ def plot_markers(markers):
   const selectedIndicatorRef = useRef(selectedIndicator);
   const ohlcvDisplayRef = useRef(null);
   const actionButtonsRef = useRef(null);
-  // âœ… Always-current refs so persistent handlers never capture stale closures
+  // ✅ Always-current refs so persistent handlers never capture stale closures
   const selectedCurrencyRef = useRef(selectedCurrency);
   const intervalSecRef = useRef(TIMEFRAME_TO_SECONDS[timeframeValue] ?? 60);
   const IST_OFFSET = 19800;
@@ -441,14 +472,14 @@ def plot_markers(markers):
     let indicatorsToFetch = selectedIndicator;
 
     if (!isContextChange) {
-      // âœ… Only fetch newly added instances
+      // ✅ Only fetch newly added instances
       indicatorsToFetch = selectedIndicator.filter(
         (ind) => !fetchedIndicatorsRef.current.has(ind.id),
       );
 
       if (indicatorsToFetch.length === 0) return;
     } else {
-      // ðŸ”¥ Reset on timeframe / currency / chartType change
+      // 🔥 Reset on timeframe / currency / chartType change
       fetchedIndicatorsRef.current.clear();
 
       // Clear existing indicator chart series
@@ -528,7 +559,7 @@ def plot_markers(markers):
   };
 
   //  GET PANE INDEX
-  // Instance ids look like "RSI_1747xxx_abc12" â€” extract base type for pane check
+  // Instance ids look like "RSI_1747xxx_abc12" — extract base type for pane check
   const getBaseTypeFromId = (instanceId) => {
     const match = instanceId.match(/^([A-Z_]+?)_\d/);
     return match ? match[1] : instanceId;
@@ -536,7 +567,7 @@ def plot_markers(markers):
 
   const getPaneIndex = (indicator) => {
     const baseType = getBaseTypeFromId(indicator);
-    // overlay indicators â†’ always main pane
+    // overlay indicators → always main pane
     if (!PANE_INDICATORS.has(baseType)) return 0;
 
     if (paneIndexRef.current[indicator] !== undefined) {
@@ -568,7 +599,7 @@ def plot_markers(markers):
       paneIndex,
     );
 
-    // âœ… Populate panesRef for sub-pane indicators using instanceId as key
+    // ✅ Populate panesRef for sub-pane indicators using instanceId as key
     if (paneIndex !== 0) {
       const tryPopulate = () => {
         if (!chartRef.current) return;
@@ -597,7 +628,7 @@ def plot_markers(markers):
     return series;
   };
 
-  //  âœ… CHART SYNC ENGINE
+  //  ✅ CHART SYNC ENGINE
   function syncCharts(sourceChart, logicalRange) {
     if (!logicalRange || syncingRef.current) return;
     syncingRef.current = true;
@@ -625,7 +656,7 @@ def plot_markers(markers):
     const pane = panesRef.current[paneKey];
     if (!pane) return;
 
-    // Each instance id is its own pane key â€” just check if still in use
+    // Each instance id is its own pane key — just check if still in use
     const stillUsed = Object.keys(indicatorSeriesRef.current).some(
       (key) => key === paneKey,
     );
@@ -645,7 +676,7 @@ def plot_markers(markers):
     delete panesRef.current[paneKey];
   }
 
-  //  âœ… INDICATOR REMOVAL â€” accepts instance id
+  //  ✅ INDICATOR REMOVAL — accepts instance id
   const removeIndicator = useCallback((instanceId) => {
     const entry = indicatorSeriesRef.current[instanceId];
     if (!entry) return;
@@ -697,7 +728,7 @@ def plot_markers(markers):
     };
   }, []); // Run only once
 
-  // kept for compatibility â€” ListingModal now directly calls setSelectedIndicator
+  // kept for compatibility — ListingModal now directly calls setSelectedIndicator
   const toggleIndicator = useCallback((type) => {
     const id = `${type}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const newInst = { id, type };
@@ -1043,7 +1074,7 @@ def plot_markers(markers):
         // exchange: selectedCurrency?.segment || "NSE",
       };
 
-      console.log("ðŸ“¤ getManualHistoricalData Payload:", historicalPayload);
+      console.log("📬 getManualHistoricalData Payload:", historicalPayload);
 
       socket.emit("getManualHistoricalData", historicalPayload);
     };
@@ -1055,11 +1086,11 @@ def plot_markers(markers):
     }
 
     socket.on("connect", () => {
-      console.log("âœ… SOCKET CONNECTED", socket);
+      console.log("✅ SOCKET CONNECTED", socket);
       requestHistoricalData();
     });
 
-    // âœ… Historical data response â€” replaces loadChart / fetchDataByCurrency
+    // ✅ Historical data response — replaces loadChart / fetchDataByCurrency
     socket.on("historicalDataResponse", (response) => {
       console.log("HISTORICAL DATA RESPONSE", response?.data);
 
@@ -1087,7 +1118,7 @@ def plot_markers(markers):
       //     close: parseFloat(d.close),
       //     volume: parseFloat(d.volume || 0),
       //   }))
-      //   .sort((a, b) => a.time - b.time); // âœ… Crucial sort like in Chart.jsx
+      //   .sort((a, b) => a.time - b.time); // ✅ Crucial sort like in Chart.jsx
 
       const raw = response?.data || [];
       const symbolFromResponse = raw[0]?.symbol;
@@ -1102,7 +1133,7 @@ def plot_markers(markers):
           volume: parseFloat(d.volume || 0),
         }))
         .sort((a, b) => a.time - b.time)
-        // âœ… Remove duplicate timestamps â€” keep last occurrence
+        // ✅ Remove duplicate timestamps — keep last occurrence
         .filter(
           (d, idx, arr) =>
             idx === arr.length - 1 || d.time !== arr[idx + 1].time,
@@ -1112,7 +1143,7 @@ def plot_markers(markers):
 
       if (!Array.isArray(data) || !data.length) return;
 
-      // ðŸ”¥ Update detailsList with fresh data for the specific stock in response
+      // 🔥 Update detailsList with fresh data for the specific stock in response
       const lastPoint = data[data.length - 1];
       const aggregateHigh = Math.max(...data.map((d) => d.high));
       const aggregateLow = Math.min(...data.map((d) => d.low));
@@ -1230,7 +1261,7 @@ def plot_markers(markers):
 
       currentCandleRef.current = data[data.length - 1];
 
-      // âœ… Populate OHLCV display on load
+      // ✅ Populate OHLCV display on load
       setTimeout(() => {
         const last = data[data.length - 1];
         if (last && ohlcvDisplayRef.current) {
@@ -1544,8 +1575,8 @@ def plot_markers(markers):
                 <div style={{ display: activeTab === "Alerts" ? "block" : "none", height: "100%" }}>
                   <LeftAlertListing
                     onClose={() => setIsWatchlistOpen(false)}
-                    alertResult={matchedCoins}
-                    setAlertResult={clearAllCoins}
+                    alertResult={customSignals}
+                    setAlertResult={setCustomSignals}
                     setSelectedCurrency={setSelectedCurrency}
                     setActiveTab={setActiveTab}
                   />
@@ -1554,7 +1585,6 @@ def plot_markers(markers):
                   <LeftWatchlist
                     onClose={() => setIsWatchlistOpen(false)}
                     setSelectedCurrency={setSelectedCurrency}
-                    alertResult={matchedCoins}
                   />
                 </div>
                 <div style={{ display: activeTab !== "Alerts" && isDetailsOpen ? "block" : "none", height: "100%" }}>
@@ -1570,6 +1600,8 @@ def plot_markers(markers):
                     scanner={scanner}
                     matchedCoins={matchedCoins}
                     removeCoin={removeCoin}
+                    activeIndicators={selectedIndicator}
+                    openScannerTrigger={openScannerTrigger}
                   />
                 </div>
               </div>
@@ -1626,6 +1658,10 @@ def plot_markers(markers):
                     setToDate={setToDate}
                     alertResult={matchedCoins}
                     addAlert={addAlert}
+                    onOpenScanner={() => {
+                      setIsDetailsOpen(true);
+                      setOpenScannerTrigger((prev) => prev + 1);
+                    }}
                   />
                 </div>
 
@@ -1644,7 +1680,7 @@ def plot_markers(markers):
                     flexDirection: "column",
                   }}
                 >
-                  {mainChartLoading ? (
+                  {mainChartLoading || isDeploying ? (
                     <div
                       style={{
                         position: "absolute",

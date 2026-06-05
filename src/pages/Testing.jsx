@@ -1,200 +1,314 @@
-import React, { useEffect, useRef, useState } from "react";
-import { CandlestickSeries, createChart, LineSeries } from "lightweight-charts";
-import Editor from "@monaco-editor/react";
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { io } from 'socket.io-client';
 
-export default function PythonChartNotebook() {
-  const chartContainerRef = useRef(null);
-  const chartRef = useRef(null);
-  const candleSeriesRef = useRef(null);
-  const indicatorSeriesRef = useRef([]);
-
-  const [code, setCode] = useState(`import pandas as pd
-
-# Example user code
-
-sma = []
-
-for i in range(len(close)):
-    if i < 19:
-        sma.append(None)
-    else:
-        sma.append(sum(close[i-19:i+1]) / 20)
-
-plot("SMA20", sma)
-`);
-
-  const candles = [
-    { time: 1710000000, open: 64000, high: 64200, low: 63900, close: 64100 },
-    { time: 1710086400, open: 64100, high: 64500, low: 64000, close: 64400 },
-    { time: 1710172800, open: 64400, high: 64600, low: 64200, close: 64300 },
-    { time: 1710259200, open: 64300, high: 64900, low: 64200, close: 64800 },
-    { time: 1710345600, open: 64800, high: 65100, low: 64600, close: 65000 },
-    { time: 1710432000, open: 65000, high: 65400, low: 64900, close: 65300 },
-    { time: 1710518400, open: 65300, high: 65600, low: 65200, close: 65500 },
-    { time: 1710604800, open: 65500, high: 65900, low: 65400, close: 65800 },
-    { time: 1710691200, open: 65800, high: 66200, low: 65700, close: 66000 },
-    { time: 1710777600, open: 66000, high: 66400, low: 65900, close: 66300 },
-    { time: 1710864000, open: 66300, high: 66700, low: 66200, close: 66600 },
-    { time: 1710950400, open: 66600, high: 66900, low: 66500, close: 66800 },
-    { time: 1711036800, open: 66800, high: 67200, low: 66700, close: 67100 },
-    { time: 1711123200, open: 67100, high: 67500, low: 67000, close: 67400 },
-    { time: 1711209600, open: 67400, high: 67800, low: 67300, close: 67600 },
-    { time: 1711296000, open: 67600, high: 68100, low: 67500, close: 68000 },
-    { time: 1711382400, open: 68000, high: 68400, low: 67900, close: 68300 },
-    { time: 1711468800, open: 68300, high: 68800, low: 68200, close: 68600 },
-    { time: 1711555200, open: 68600, high: 69100, low: 68500, close: 68900 },
-    { time: 1711641600, open: 68900, high: 69400, low: 68800, close: 69200 },
-    { time: 1711728000, open: 69200, high: 69700, low: 69100, close: 69500 },
-    { time: 1711814400, open: 69500, high: 70000, low: 69400, close: 69800 },
-  ];
+const FlashCell = ({ value, className }) => {
+  const [flashClass, setFlashClass] = useState('');
+  const prevValueRef = React.useRef(value);
 
   useEffect(() => {
-    const chart = createChart(chartContainerRef.current, {
-      width: chartContainerRef.current.clientWidth,
-      height: 500,
-      layout: {
-        background: { color: "#0f172a" },
-        textColor: "#cbd5e1",
-      },
-      grid: {
-        vertLines: { color: "#1e293b" },
-        horzLines: { color: "#1e293b" },
-      },
+    if (value !== prevValueRef.current && value !== '-' && value != null) {
+      const numVal = parseFloat(value);
+      const prevNum = parseFloat(prevValueRef.current);
+      if (!isNaN(numVal) && !isNaN(prevNum)) {
+        if (numVal > prevNum) {
+          setFlashClass('bg-green-600 text-white font-extrabold scale-110 relative z-10 shadow-lg transition-none');
+        } else if (numVal < prevNum) {
+          setFlashClass('bg-red-600 text-white font-extrabold scale-110 relative z-10 shadow-lg transition-none');
+        }
+        
+        const timer = setTimeout(() => {
+          setFlashClass('transition-all duration-1000 ease-in-out');
+        }, 400);
+        
+        prevValueRef.current = value;
+        return () => clearTimeout(timer);
+      }
+      prevValueRef.current = value;
+    }
+  }, [value]);
+
+  return <td className={`${className} ${flashClass}`}>{value || '-'}</td>;
+};
+
+const OptionChainUI = () => {
+  const [liveData, setLiveData] = useState([]);
+  const [selectedSymbol, setSelectedSymbol] = useState('');
+  const [selectedExpiry, setSelectedExpiry] = useState('');
+  const [isConnected, setIsConnected] = useState(false);
+
+  const [symbols, setSymbols] = useState(['NIFTY', 'BANKNIFTY']);
+
+  // Fetch all target symbols from the backend
+  useEffect(() => {
+    fetch('./targetSymbols.json')
+      .then(res => res.json())
+      .then(data => {
+        // Ensure NIFTY and BANKNIFTY are at the top for convenience
+        let sortedSymbols = data;
+        if (sortedSymbols.includes('NIFTY') && sortedSymbols.includes('BANKNIFTY')) {
+          sortedSymbols = ['NIFTY', 'BANKNIFTY', ...sortedSymbols.filter(s => s !== 'NIFTY' && s !== 'BANKNIFTY')];
+        }
+        setSymbols(sortedSymbols);
+        if (sortedSymbols.length > 0) {
+          setSelectedSymbol(sortedSymbols[0]);
+        }
+      })
+      .catch(err => console.error("Error fetching symbols:", err));
+  }, []);
+
+  // Move socket instance to a ref or state so it can be accessed in other effects
+  const [socketInstance, setSocketInstance] = useState(null);
+
+  // Initialize Socket Connection
+  useEffect(() => {
+    // Connect to backend (adjust URL if backend is hosted elsewhere)
+    const socket = io('http://192.168.1.11:3000');
+    setSocketInstance(socket);
+
+    socket.on('connect', () => {
+      setIsConnected(true);
+      console.log('Connected to Option Chain WebSocket');
     });
 
-    const candleSeries = chart.addSeries(CandlestickSeries,{
-      upColor: "#22c55e",
-      downColor: "#ef4444",
-      borderVisible: false,
-      wickUpColor: "#22c55e",
-      wickDownColor: "#ef4444",
+    socket.on('disconnect', () => {
+      setIsConnected(false);
+      console.log('Disconnected from WebSocket');
     });
 
-    candleSeries.setData(candles);
-
-    chart.timeScale().fitContent();
-
-    chartRef.current = chart;
-    candleSeriesRef.current = candleSeries;
-
-    const handleResize = () => {
-      chart.applyOptions({
-        width: chartContainerRef.current.clientWidth,
-      });
-    };
-
-    window.addEventListener("resize", handleResize);
+    // Listen for live data updates
+    socket.on('option-chain-data', (response) => {
+      if (response && response.data) {
+        setLiveData(response.data);
+      }
+    });
 
     return () => {
-      window.removeEventListener("resize", handleResize);
-      chart.remove();
+      socket.disconnect();
     };
   }, []);
 
-  const simulateBackendExecution = () => {
-    const closes = candles.map((c) => c.close);
+  // Emit filters whenever selectedSymbol or socket changes
+  useEffect(() => {
+    if (socketInstance && isConnected) {
+      socketInstance.emit('set-filters', { symbol: selectedSymbol });
+    }
+  }, [selectedSymbol, socketInstance, isConnected]);
 
-    const sma = closes.map((_, index) => {
-      if (index < 4) return null;
+  // Filter data by selected symbol
+  const symbolData = useMemo(() => {
+    return liveData.filter(item => item.symbol === selectedSymbol);
+  }, [liveData, selectedSymbol]);
 
-      const slice = closes.slice(index - 4, index + 1);
+  // Extract unique expiries for the selected symbol
+  const expiries = useMemo(() => {
+    const uniqueExpiries = [...new Set(symbolData.map(item => item.expiry_date))];
+    // Sort expiries chronologically
+    uniqueExpiries.sort((a, b) => new Date(a) - new Date(b));
+    return uniqueExpiries;
+  }, [symbolData]);
 
-      return (
-        slice.reduce((sum, value) => sum + value, 0) / slice.length
-      );
+  // Auto-select the nearest expiry if not set or if symbol changes
+  useEffect(() => {
+    if (expiries.length > 0) {
+      if (!selectedExpiry || !expiries.includes(selectedExpiry)) {
+        setSelectedExpiry(expiries[0]);
+      }
+    } else {
+      setSelectedExpiry('');
+    }
+  }, [expiries, selectedExpiry]);
+
+  // Filter data by selected expiry
+  const expiryData = useMemo(() => {
+    return symbolData.filter(item => item.expiry_date === selectedExpiry);
+  }, [symbolData, selectedExpiry]);
+
+  // Group by Strike Price to format for the Option Chain Table
+  const optionChain = useMemo(() => {
+    const chainMap = {};
+    
+    expiryData.forEach(item => {
+      const strike = parseFloat(item.strike_price);
+      if (!chainMap[strike]) {
+        chainMap[strike] = { strike_price: strike, CE: null, PE: null };
+      }
+      chainMap[strike][item.option_type] = item;
     });
 
-    return {
-      series: [
-        {
-          name: "SMA 5",
-          data: candles
-            .map((candle, index) => ({
-              time: candle.time,
-              value: sma[index],
-            }))
-            .filter((x) => x.value !== null),
-        },
-      ],
-    };
-  };
-
-  const runPython = () => {
-    indicatorSeriesRef.current.forEach((series) => {
-      chartRef.current.removeSeries(series);
-    });
-
-    indicatorSeriesRef.current = [];
-
-    const response = simulateBackendExecution(code);
-
-    console.log("Plotting JSON:", JSON.stringify(response, null, 2));
-
-    response.series.forEach((indicator) => {
-      const lineSeries = chartRef.current.addSeries(LineSeries,{
-        title: indicator.name,
-        lineWidth: 2,
-      });
-
-      lineSeries.setData(indicator.data);
-
-      indicatorSeriesRef.current.push(lineSeries);
-    });
-  };
+    // Convert map to array and sort by strike price
+    return Object.values(chainMap).sort((a, b) => a.strike_price - b.strike_price);
+  }, [expiryData]);
 
   return (
-    <div
-      style={{
-        background: "#020617",
-        minHeight: "100vh",
-        padding: 20,
-        color: "white",
-      }}
-    >
-      <h1>Python Notebook + Candlestick Chart</h1>
+    <div className="min-h-screen bg-gray-900 text-gray-100 p-2 font-sans overflow-x-hidden">
+      <div className="w-full mx-auto">
+        
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row justify-between items-center mb-8 bg-gray-800 p-5 rounded-xl shadow-lg border border-gray-700">
+          <div>
+            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
+              Live Option Chain
+            </h1>
+            <div className="flex items-center mt-2 space-x-2">
+              <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+              <span className="text-sm text-gray-400">
+                {isConnected ? 'Live WebSocket Connected' : 'Disconnected'}
+              </span>
+            </div>
+          </div>
 
-      <div
-        ref={chartContainerRef}
-        style={{
-          width: "100%",
-          height: 500,
-          marginBottom: 20,
-          border: "1px solid #334155",
-          borderRadius: 10,
-        }}
-      />
+          <div className="flex space-x-4 mt-4 md:mt-0">
+            {/* Symbol Dropdown */}
+            <div className="flex flex-col">
+              <label className="text-xs text-gray-400 mb-1">Symbol</label>
+              <select 
+                value={selectedSymbol} 
+                onChange={(e) => setSelectedSymbol(e.target.value)}
+                className="bg-gray-700 border border-gray-600 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              >
+                {symbols.map(sym => (
+                  <option key={sym} value={sym}>{sym}</option>
+                ))}
+              </select>
+            </div>
 
-      <div
-        style={{
-          border: "1px solid #334155",
-          overflow: "hidden",
-          borderRadius: 10,
-        }}
-      >
-        <Editor
-          height="400px"
-          defaultLanguage="python"
-          value={code}
-          theme="vs-dark"
-          onChange={(value) => setCode(value || "")}
-        />
+            {/* Expiry Dropdown */}
+            <div className="flex flex-col">
+              <label className="text-xs text-gray-400 mb-1">Expiry Date</label>
+              <select 
+                value={selectedExpiry} 
+                onChange={(e) => setSelectedExpiry(e.target.value)}
+                className="bg-gray-700 border border-gray-600 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                disabled={expiries.length === 0}
+              >
+                {expiries.length > 0 ? (
+                  expiries.map(exp => (
+                    <option key={exp} value={exp}>{new Date(exp).toDateString()}</option>
+                  ))
+                ) : (
+                  <option>Waiting for data...</option>
+                )}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Option Chain Table */}
+        <div className="bg-gray-800 rounded-xl shadow-2xl overflow-hidden border border-gray-700">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-center whitespace-nowrap">
+              <thead>
+                {/* Master Headers */}
+                <tr className="bg-gray-900 border-b border-gray-700 text-gray-300">
+                  <th colSpan="13" className="py-3 bg-blue-900/20 border-r border-gray-700">CALLS (CE)</th>
+                  <th className="py-3 bg-gray-800 border-r border-gray-700 w-32">STRIKE</th>
+                  <th colSpan="13" className="py-3 bg-red-900/20">PUTS (PE)</th>
+                </tr>
+                {/* Sub Headers */}
+                <tr className="bg-gray-800 border-b border-gray-700 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  <th className="py-3 px-2 border-r border-gray-700/50 text-purple-400">Vega</th>
+                  <th className="py-3 px-2 border-r border-gray-700/50 text-purple-400">Theta</th>
+                  <th className="py-3 px-2 border-r border-gray-700/50 text-purple-400">Gamma</th>
+                  <th className="py-3 px-2 border-r border-gray-700/50 text-purple-400">Delta</th>
+                  <th className="py-3 px-2 border-r border-gray-700/50 text-yellow-400">IV</th>
+                  <th className="py-3 px-2 border-r border-gray-700/50">OI</th>
+                  <th className="py-3 px-2 border-r border-gray-700/50">Chng OI</th>
+                  <th className="py-3 px-2 border-r border-gray-700/50">Vol</th>
+                  <th className="py-3 px-2 border-r border-gray-700/50 text-gray-500">O</th>
+                  <th className="py-3 px-2 border-r border-gray-700/50 text-gray-500">H</th>
+                  <th className="py-3 px-2 border-r border-gray-700/50 text-gray-500">L</th>
+                  <th className="py-3 px-2 border-r border-gray-700/50 text-gray-500">C</th>
+                  <th className="py-3 px-2 border-r border-gray-700 text-blue-400">LTP</th>
+                  
+                  <th className="py-3 px-4 border-r border-gray-700 bg-gray-900 text-white font-bold">Price</th>
+                  
+                  <th className="py-3 px-2 border-r border-gray-700/50 text-red-400">LTP</th>
+                  <th className="py-3 px-2 border-r border-gray-700/50 text-gray-500">O</th>
+                  <th className="py-3 px-2 border-r border-gray-700/50 text-gray-500">H</th>
+                  <th className="py-3 px-2 border-r border-gray-700/50 text-gray-500">L</th>
+                  <th className="py-3 px-2 border-r border-gray-700/50 text-gray-500">C</th>
+                  <th className="py-3 px-2 border-r border-gray-700/50">Vol</th>
+                  <th className="py-3 px-2 border-r border-gray-700/50">Chng OI</th>
+                  <th className="py-3 px-2 border-r border-gray-700/50">OI</th>
+                  <th className="py-3 px-2 border-r border-gray-700/50 text-yellow-400">IV</th>
+                  <th className="py-3 px-2 border-r border-gray-700/50 text-purple-400">Delta</th>
+                  <th className="py-3 px-2 border-r border-gray-700/50 text-purple-400">Gamma</th>
+                  <th className="py-3 px-2 border-r border-gray-700/50 text-purple-400">Theta</th>
+                  <th className="py-3 px-2 text-purple-400">Vega</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-700/50">
+                {optionChain.length > 0 ? (
+                  optionChain.map((row, idx) => {
+                    const ce = row.CE || {};
+                    const pe = row.PE || {};
+                    
+                    // Highlighting ITM/OTM theoretically (Simplified: assuming middle is ATM for visual)
+                    // In real life, you'd calculate ATM based on Spot Price.
+                    const isCeItm = idx < Math.floor(optionChain.length / 2); 
+                    const isPeItm = idx >= Math.floor(optionChain.length / 2);
+
+                    return (
+                      <tr key={row.strike_price} className="hover:bg-gray-700/30 transition-colors">
+                        {/* Calls Data */}
+                        <FlashCell value={ce.vega} className={`py-2 px-1 border-r border-gray-700/50 text-purple-300 ${isCeItm ? 'bg-blue-900/10' : ''}`} />
+                        <FlashCell value={ce.theta} className={`py-2 px-1 border-r border-gray-700/50 text-purple-300 ${isCeItm ? 'bg-blue-900/10' : ''}`} />
+                        <FlashCell value={ce.gamma} className={`py-2 px-1 border-r border-gray-700/50 text-purple-300 ${isCeItm ? 'bg-blue-900/10' : ''}`} />
+                        <FlashCell value={ce.delta} className={`py-2 px-1 border-r border-gray-700/50 text-purple-300 ${isCeItm ? 'bg-blue-900/10' : ''}`} />
+                        <FlashCell value={ce.iv} className={`py-2 px-1 border-r border-gray-700/50 text-yellow-300 ${isCeItm ? 'bg-blue-900/10' : ''}`} />
+                        <FlashCell value={ce.oi} className={`py-2 px-1 border-r border-gray-700/50 ${isCeItm ? 'bg-blue-900/10' : ''}`} />
+                        <td className={`py-2 px-1 border-r border-gray-700/50 ${isCeItm ? 'bg-blue-900/10' : ''}`}>
+                           <span className={ce.oi_change > 0 ? 'text-green-400' : ce.oi_change < 0 ? 'text-red-400' : ''}>
+                              {ce.oi_change || '-'}
+                           </span>
+                        </td>
+                        <FlashCell value={ce.volume} className={`py-2 px-1 border-r border-gray-700/50 ${isCeItm ? 'bg-blue-900/10' : ''}`} />
+                        <td className={`py-2 px-1 border-r border-gray-700/50 text-gray-400 ${isCeItm ? 'bg-blue-900/10' : ''}`}>{ce.open ? parseFloat(ce.open).toFixed(2) : '-'}</td>
+                        <td className={`py-2 px-1 border-r border-gray-700/50 text-green-400/80 ${isCeItm ? 'bg-blue-900/10' : ''}`}>{ce.high ? parseFloat(ce.high).toFixed(2) : '-'}</td>
+                        <td className={`py-2 px-1 border-r border-gray-700/50 text-red-400/80 ${isCeItm ? 'bg-blue-900/10' : ''}`}>{ce.low ? parseFloat(ce.low).toFixed(2) : '-'}</td>
+                        <td className={`py-2 px-1 border-r border-gray-700/50 text-gray-400 ${isCeItm ? 'bg-blue-900/10' : ''}`}>{ce.close ? parseFloat(ce.close).toFixed(2) : '-'}</td>
+                        <FlashCell value={ce.ltp ? parseFloat(ce.ltp).toFixed(2) : null} className={`py-2 px-1 border-r border-gray-700 font-bold text-blue-300 ${isCeItm ? 'bg-blue-900/20' : ''}`} />
+                        
+                        {/* Strike Price */}
+                        <td className="py-2 px-2 border-r border-gray-700 bg-gray-800/80 font-bold text-white shadow-inner">
+                          {row.strike_price}
+                        </td>
+                        
+                        {/* Puts Data */}
+                        <FlashCell value={pe.ltp ? parseFloat(pe.ltp).toFixed(2) : null} className={`py-2 px-1 border-r border-gray-700/50 font-bold text-red-300 ${isPeItm ? 'bg-red-900/20' : ''}`} />
+                        <td className={`py-2 px-1 border-r border-gray-700/50 text-gray-400 ${isPeItm ? 'bg-red-900/10' : ''}`}>{pe.open ? parseFloat(pe.open).toFixed(2) : '-'}</td>
+                        <td className={`py-2 px-1 border-r border-gray-700/50 text-green-400/80 ${isPeItm ? 'bg-red-900/10' : ''}`}>{pe.high ? parseFloat(pe.high).toFixed(2) : '-'}</td>
+                        <td className={`py-2 px-1 border-r border-gray-700/50 text-red-400/80 ${isPeItm ? 'bg-red-900/10' : ''}`}>{pe.low ? parseFloat(pe.low).toFixed(2) : '-'}</td>
+                        <td className={`py-2 px-1 border-r border-gray-700/50 text-gray-400 ${isPeItm ? 'bg-red-900/10' : ''}`}>{pe.close ? parseFloat(pe.close).toFixed(2) : '-'}</td>
+                        <FlashCell value={pe.volume} className={`py-2 px-1 border-r border-gray-700/50 ${isPeItm ? 'bg-red-900/10' : ''}`} />
+                        <td className={`py-2 px-1 border-r border-gray-700/50 ${isPeItm ? 'bg-red-900/10' : ''}`}>
+                           <span className={pe.oi_change > 0 ? 'text-green-400' : pe.oi_change < 0 ? 'text-red-400' : ''}>
+                              {pe.oi_change || '-'}
+                           </span>
+                        </td>
+                        <FlashCell value={pe.oi} className={`py-2 px-1 border-r border-gray-700/50 ${isPeItm ? 'bg-red-900/10' : ''}`} />
+                        <FlashCell value={pe.iv} className={`py-2 px-1 border-r border-gray-700/50 text-yellow-300 ${isPeItm ? 'bg-red-900/10' : ''}`} />
+                        <FlashCell value={pe.delta} className={`py-2 px-1 border-r border-gray-700/50 text-purple-300 ${isPeItm ? 'bg-red-900/10' : ''}`} />
+                        <FlashCell value={pe.gamma} className={`py-2 px-1 border-r border-gray-700/50 text-purple-300 ${isPeItm ? 'bg-red-900/10' : ''}`} />
+                        <FlashCell value={pe.theta} className={`py-2 px-1 border-r border-gray-700/50 text-purple-300 ${isPeItm ? 'bg-red-900/10' : ''}`} />
+                        <FlashCell value={pe.vega} className={`py-2 px-1 text-purple-300 ${isPeItm ? 'bg-red-900/10' : ''}`} />
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan="17" className="py-12 text-gray-500 font-medium text-lg">
+                      {isConnected ? "Waiting for market data..." : "Connecting to live feed..."}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
-
-      <button
-        onClick={runPython}
-        style={{
-          marginTop: 15,
-          padding: "12px 24px",
-          border: "none",
-          borderRadius: 8,
-          cursor: "pointer",
-          fontSize: 16,
-          background: "#22c55e",
-          color: "#fff",
-        }}
-      >
-        Run Python
-      </button>
     </div>
   );
-}
+};
+
+export default OptionChainUI;

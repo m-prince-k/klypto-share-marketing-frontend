@@ -19,12 +19,21 @@ const LeftDetail = ({
   matchedCoins,
   removeCoin,
   alertsFeed,
+  activeIndicators,
+  openScannerTrigger,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   // Tab: "watchlist" | "scanner"
   const [activeTab, setActiveTab] = useState("watchlist");
+
+  React.useEffect(() => {
+    if (openScannerTrigger && openScannerTrigger > 0) {
+      setActiveTab("scanner");
+      setIsScannerOpen(true);
+    }
+  }, [openScannerTrigger]);
 
   const styles = {
     container: {
@@ -345,7 +354,7 @@ const LeftDetail = ({
           <div style={styles.subHeader}>
             <span>Symbol</span>
             <div style={{ display: "flex", gap: "20px" }}>
-              <span>RSI</span>
+              <span>Value</span>
               <span>Time</span>
             </div>
           </div>
@@ -371,7 +380,7 @@ const LeftDetail = ({
                     <div style={styles.badge}>{coin.symbol.substring(0, 1)}</div>
                     <div>
                       <div style={styles.stockName}>{coin.symbol}</div>
-                      <div style={styles.rsiTag}>RSI {coin.rsi} · {coin.condition}</div>
+                      <div style={styles.rsiTag}>{coin.indicator || "RSI"}: {coin.rsi} · {coin.condition}</div>
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
@@ -445,6 +454,7 @@ const LeftDetail = ({
           matchedCoins={matchedCoins}
           removeCoin={removeCoin}
           setSelectedCurrency={setSelectedCurrency}
+          activeIndicators={activeIndicators}
         />
       )}
     </div>

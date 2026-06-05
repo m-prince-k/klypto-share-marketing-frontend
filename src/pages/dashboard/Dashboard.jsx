@@ -12,8 +12,9 @@ const Dashboard = () => {
 
   const passedStock = location.state?.stock || null;
   const passedAction = location.state?.action || null;
+  const passedExpiry = location.state?.expiry || null;
   const [stock, setStock] = useState(passedStock || "");
-  const [expiry, setExpiry] = useState("");
+  const [expiry, setExpiry] = useState(passedExpiry || "");
   const [strategy, setStrategy] = useState("Nearest ATM");
   const [preference, setPreference] = useState("ATM");
   const [product, setProduct] = useState("CARRYFORWARD");

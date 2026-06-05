@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { FiSearch, FiSettings, FiX, FiPlus, FiMaximize2 } from "react-icons/fi";
 import socket from "../../services/socket";
 
-const LeftWatchlist = ({ onClose, setSelectedCurrency, alertResult }) => {
+const LeftWatchlist = ({ onClose, setSelectedCurrency }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [stocksData, setStocksData] = useState([]);
 

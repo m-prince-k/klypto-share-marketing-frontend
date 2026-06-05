@@ -96,6 +96,7 @@ const LeftAlertListing = ({
   };
 
   const results = Array.isArray(alertResult) ? alertResult : [];
+  console.log("result",alertResult)
 
   const handleItemClick = (item) => {
     if (setSelectedCurrency) {
@@ -123,7 +124,7 @@ const LeftAlertListing = ({
       `}</style>
 
       <div style={styles.header}>
-        <span>Alert Scanner Results</span>
+        <span>Script Signals</span>
         <div style={styles.headerActions}>
           {results.length > 0 && (
             <button
@@ -196,9 +197,15 @@ const LeftAlertListing = ({
                   <div style={styles.itemTop}>
                     <span style={styles.stockName}>{item.symbol}</span>
 
-                    <span style={styles.rsiValue}>
-                      {Number(item.rsi).toFixed(2)}
-                    </span>
+                    {item.signalType && (
+                      <span style={{
+                        fontWeight: "600",
+                        fontSize: "0.85rem",
+                        color: item.signalType === "BUY" ? "#22ab94" : "#f23645",
+                      }}>
+                        {item.signalType}
+                      </span>
+                    )}
                   </div>
 
                   <div style={styles.itemBottom}>
@@ -206,84 +213,11 @@ const LeftAlertListing = ({
                       {item.timestamp || new Date().toLocaleTimeString()}
                     </span>
 
-                    <span>{item.segment || "NSE"}</span>
+                    {/* <span>{item.segment || "NSE"}</span> */}
                   </div>
                 </div>
               </Link>
 
-              {/* HOVER ACTIONS */}
-              <div className="hover-actions">
-                <style>{`
-.alert-item-wrapper {
-  overflow: hidden;
-}
-
-.hover-actions {
-  position: absolute;
-  top: 50%;
-  right: 10px;
-  transform: translateY(-50%) translateX(20px);
-  opacity: 0;
-  display: flex;
-  gap: 6px;
-  transition: all 0.2s ease;
-  pointer-events: none;
-}
-
-.alert-item-wrapper:hover .hover-actions {
-  opacity: 1;
-  transform: translateY(-50%) translateX(0);
-  pointer-events: auto;
-}
-`}</style>
-                <Link
-                  to="/dashboard"
-                  state={{
-                    stock: item,
-                    action: "BUY",
-                  }}
-                  style={{ textDecoration: "none" }}
-                >
-                  <button
-                    style={{
-                      background: "#10b981",
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: 6,
-                      width: 34,
-                      height: 28,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                    }}
-                  >
-                    B
-                  </button>
-                </Link>
-
-                <Link
-                  to="/dashboard"
-                  state={{
-                    stock: item,
-                    action: "SELL",
-                  }}
-                  style={{ textDecoration: "none" }}
-                >
-                  <button
-                    style={{
-                      background: "#ef4444",
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: 6,
-                      width: 34,
-                      height: 28,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                    }}
-                  >
-                    S
-                  </button>
-                </Link>
-              </div>
             </div>
           ))
         )}

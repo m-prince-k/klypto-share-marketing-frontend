@@ -8,6 +8,7 @@ import Signup from "./pages/auth/signup";
 import Login from "./pages/auth/login";
 import { ProtectedRoute } from "./pages/auth/ProtectedRoute";
 import Testing from "./pages/Testing";
+import Backtest from "./pages/Backtest";
 import "./indicatorLogger";
 
 function App() {
@@ -31,6 +32,7 @@ function App() {
             <Route path="/goldchart" element={<Chart />} />
             <Route path="/" element={<Candlestick />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/backtest" element={<Backtest />} />
           </Route>
         </Routes>
       </div>
