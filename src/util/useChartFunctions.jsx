@@ -617,6 +617,23 @@ export default function useChartFunctions({
         };
         break;
       }
+      case "MA_RIBBON": {
+        const ma1Data = result?.data?.ma1 ?? [];
+        const ma2Data = result?.data?.ma2 ?? [];
+        const ma3Data = result?.data?.ma3 ?? [];
+        const ma4Data = result?.data?.ma4 ?? [];
+
+        indicatorDataRef.current[id] = { result, rows };
+
+        latestIndicatorValuesRef.current[id] = {
+          ma1: ma1Data[ma1Data.length - 1]?.value ?? null,
+          ma2: ma2Data[ma2Data.length - 1]?.value ?? null,
+          ma3: ma3Data[ma3Data.length - 1]?.value ?? null,
+          ma4: ma4Data[ma4Data.length - 1]?.value ?? null,
+        };
+
+        break;
+      }
       default:
         indicatorDataRef.current[id] = { result, rows };
         break;
@@ -677,13 +694,13 @@ async function fetchDataForIndicators(
         }))
         .filter((d) => d.value !== null) ?? [];
 
-    console.log("mapped conversion", response.data, "conversionLine");
+    console.log("mapped conversion", response?.data, "conversionLine");
 
     switch (type) {
       /* ---------------- SINGLE VALUE ---------------- */
 
       case "VWAP": {
-        const rows = Array.isArray(response.data) ? response.data : [];
+        const rows = Array.isArray(response?.data) ? response?.data : [];
 
         return {
           type: "multi",
@@ -744,7 +761,7 @@ async function fetchDataForIndicators(
         return {
           type: "single",
           data:
-            response.data
+            response?.data
               ?.filter((d) => d.sar != null && d.time != null)
               .map((d) => ({
                 time: Number(d.time) + IST_OFFSET,
@@ -757,7 +774,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             bbw:
-              response.data
+              response?.data
                 ?.filter((d) => d.bbw != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -765,7 +782,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             highest:
-              response.data
+              response?.data
                 ?.filter((d) => d.highestExpansion != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -773,7 +790,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             lowest:
-              response.data
+              response?.data
                 ?.filter((d) => d.lowestContraction != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -820,7 +837,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             sma:
-              response.data
+              response?.data
                 ?.filter((d) => d.sma != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -828,7 +845,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             smoothingMA:
-              response.data
+              response?.data
                 ?.filter((d) => d.smoothingMA != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -836,7 +853,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             bbUpper:
-              response.data
+              response?.data
                 ?.filter((d) => d.bbUpper != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -844,7 +861,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             bbLower:
-              response.data
+              response?.data
                 ?.filter((d) => d.bbLower != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -888,7 +905,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             upperChannel:
-              response.data
+              response?.data
                 ?.filter((d) => d.upperChannel != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -896,7 +913,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             lowerChannel:
-              response.data
+              response?.data
                 ?.filter((d) => d.lowerChannel != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -904,7 +921,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             atrUpper:
-              response.data
+              response?.data
                 ?.filter((d) => d.atrUpper != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -912,7 +929,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             atrLower:
-              response.data
+              response?.data
                 ?.filter((d) => d.atrLower != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -920,7 +937,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             // sslExit:
-            //   response.data
+            //   response?.data
             //     ?.filter((d) => d.sslExit != null && d.time != null)
             //     .map((d) => ({
             //       time: Number(d.time) + IST_OFFSET,
@@ -934,7 +951,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             pvi:
-              response.data
+              response?.data
                 ?.filter((d) => d.pvi != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -942,7 +959,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             pviEma:
-              response.data
+              response?.data
                 ?.filter((d) => d.pviEma != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -956,7 +973,7 @@ async function fetchDataForIndicators(
           type: "single",
           data: {
             hv:
-              response.data
+              response?.data
                 ?.filter((d) => d.historical_Vol != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -969,7 +986,7 @@ async function fetchDataForIndicators(
           type: "single",
           data: {
             nvi:
-              response.data
+              response?.data
                 ?.filter((d) => d.nvi != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -977,7 +994,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             nviEma:
-              response.data
+              response?.data
                 ?.filter((d) => d.nviEma != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -989,7 +1006,7 @@ async function fetchDataForIndicators(
         return {
           type: "single",
           data:
-            response.data
+            response?.data
               ?.filter((d) => d.eom != null && d.time != null)
               .map((d) => ({
                 time: Number(d.time) + IST_OFFSET,
@@ -1002,7 +1019,7 @@ async function fetchDataForIndicators(
           type: "single",
           data: {
             cmf:
-              response.data
+              response?.data
                 ?.filter((d) => d.cmf != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1016,7 +1033,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             ema:
-              response.data
+              response?.data
                 ?.filter((d) => d.ema != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1024,7 +1041,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             smoothingMA:
-              response.data
+              response?.data
                 ?.filter((d) => d.smoothingMA != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1032,7 +1049,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             bbUpper:
-              response.data
+              response?.data
                 ?.filter((d) => d.bbUpper != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1040,7 +1057,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             bbLower:
-              response.data
+              response?.data
                 ?.filter((d) => d.bbLower != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1050,7 +1067,7 @@ async function fetchDataForIndicators(
         };
 
       case "CCI": {
-        const rows = Array.isArray(response?.data) ? response.data : [];
+        const rows = Array.isArray(response?.data) ? response?.data : [];
 
         const mapLineCCI = (field) =>
           rows
@@ -1093,7 +1110,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             chopLine:
-              response.data
+              response?.data
                 ?.filter((d) => d.chop != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1107,7 +1124,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             long:
-              response.data
+              response?.data
                 ?.filter((d) => d.stopLong != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1115,7 +1132,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             short:
-              response.data
+              response?.data
                 ?.filter((d) => d.stopShort != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1128,7 +1145,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             hma:
-              response.data
+              response?.data
                 ?.filter((d) => d.hma != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1141,7 +1158,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             dema:
-              response.data
+              response?.data
                 ?.filter((d) => d.dema != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1155,7 +1172,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             tema:
-              response.data
+              response?.data
                 ?.filter((d) => d.tema != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1168,7 +1185,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             kama:
-              response.data
+              response?.data
                 ?.filter((d) => d.kama != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1180,7 +1197,7 @@ async function fetchDataForIndicators(
         return {
           type: "single",
           data:
-            response.data
+            response?.data
               ?.filter((d) => d.aroonOsc != null && d.time != null)
               .map((d) => ({
                 time: Number(d.time) + IST_OFFSET,
@@ -1193,17 +1210,17 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             upTrend:
-              response.data?.map((d) => ({
+              response?.data?.map((d) => ({
                 time: Number(d.time) + IST_OFFSET,
                 value: d.upTrend ?? null,
               })) ?? [],
             downTrend:
-              response.data?.map((d) => ({
+              response?.data?.map((d) => ({
                 time: Number(d.time) + IST_OFFSET,
                 value: d.downTrend ?? null,
               })) ?? [],
             bodyMiddle:
-              response.data?.map((d) => ({
+              response?.data?.map((d) => ({
                 time: Number(d.time) + IST_OFFSET,
                 value: d.bodyMiddle ?? null,
               })) ?? [],
@@ -1214,7 +1231,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             momentum:
-              response.data
+              response?.data
                 ?.filter((d) => d.mom != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1228,7 +1245,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             upper:
-              response.data
+              response?.data
                 ?.filter((d) => d.upper != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1236,7 +1253,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             lower:
-              response.data
+              response?.data
                 ?.filter((d) => d.lower != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1244,7 +1261,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             basis:
-              response.data
+              response?.data
                 ?.filter((d) => d.basis != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1257,7 +1274,7 @@ async function fetchDataForIndicators(
           type: "single",
           data: {
             trix:
-              response.data
+              response?.data
                 ?.filter((d) => d.trix != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1271,7 +1288,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             roc:
-              response.data
+              response?.data
                 ?.filter((d) => d.roc != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1285,7 +1302,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             zigzagLine:
-              response.data?.series
+              response?.data?.series
                 ?.filter((d) => d.value != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1293,7 +1310,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             paneLabels:
-              response.data?.pivots
+              response?.data?.pivots
                 ?.filter((d) => d.price != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1308,7 +1325,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             adx:
-              response.data
+              response?.data
                 ?.filter((d) => d.ADX != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1344,7 +1361,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             pvo:
-              response.data
+              response?.data
                 ?.filter((d) => d.pvo != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1352,7 +1369,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             signal:
-              response.data
+              response?.data
                 ?.filter((d) => d.signal != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1360,7 +1377,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             hist:
-              response.data
+              response?.data
                 ?.filter((d) => d.hist != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1372,7 +1389,7 @@ async function fetchDataForIndicators(
         return {
           type: "single",
           data:
-            response.data
+            response?.data
               ?.filter((d) => d.value != null && d.time != null)
               .map((d) => ({
                 time: Number(d.time) + IST_OFFSET,
@@ -1385,7 +1402,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             obv:
-              response.data
+              response?.data
                 ?.filter((d) => d.obv != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1393,7 +1410,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             smoothingMA:
-              response.data
+              response?.data
                 ?.filter((d) => d.smoothingMA != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1401,7 +1418,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             bbUpper:
-              response.data
+              response?.data
                 ?.filter((d) => d.bbUpper != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1409,7 +1426,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             bbLower:
-              response.data
+              response?.data
                 ?.filter((d) => d.bbLower != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1423,7 +1440,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             volume:
-              response.data?.map((d) => ({
+              response?.data?.map((d) => ({
                 time: Number(d.time) + IST_OFFSET,
                 value: Number(d.volume),
                 color:
@@ -1433,7 +1450,7 @@ async function fetchDataForIndicators(
               })) ?? [],
 
             volumeMA:
-              response.data?.map((d) => ({
+              response?.data?.map((d) => ({
                 time: Number(d.time) + IST_OFFSET,
                 value: Number(d.volumeMA),
               })) ?? [],
@@ -1457,7 +1474,7 @@ async function fetchDataForIndicators(
         return {
           type: "single",
 
-          data: (response.data ?? [])
+          data: (response?.data ?? [])
             .filter((d) => d && d.atr != null && d.time != null)
             .map((d) => ({
               time: Number(d.time) + IST_OFFSET,
@@ -1470,7 +1487,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             rsi:
-              response.data
+              response?.data
                 ?.filter((d) => d.rsi != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1478,7 +1495,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             smoothingMA:
-              response.data
+              response?.data
                 ?.filter((d) => d.smoothingMA != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1486,7 +1503,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             bbUpperBand:
-              response.data
+              response?.data
                 ?.filter((d) => d.bbUpperBand != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1494,7 +1511,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             bbLowerBand:
-              response.data
+              response?.data
                 ?.filter((d) => d.bbLowerBand != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1507,8 +1524,8 @@ async function fetchDataForIndicators(
         return {
           type: "multi",
           data: {
-            aroonUp: response.data?.aroonUpSeries ?? [],
-            aroonDown: response.data?.aroonDownSeries ?? [],
+            aroonUp: response?.data?.aroonUpSeries ?? [],
+            aroonDown: response?.data?.aroonDownSeries ?? [],
           },
         };
       case "TR":
@@ -1529,7 +1546,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             percentB:
-              response.data
+              response?.data
                 ?.filter((d) => d.percentB != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1581,7 +1598,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             r:
-              response.data
+              response?.data
                 ?.filter((d) => d.williamPercentR != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1594,7 +1611,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             wma:
-              response.data
+              response?.data
                 ?.filter((d) => d.wma != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1604,7 +1621,7 @@ async function fetchDataForIndicators(
         };
 
       case "PivotPoints(Standard)": {
-        const d = response.data ?? {};
+        const d = response?.data ?? {};
 
         console.log("Pivot Standard:", d);
 
@@ -1623,7 +1640,7 @@ async function fetchDataForIndicators(
       }
 
       case "PivotPoints(Fibonacci)": {
-        const d = response.data ?? {};
+        const d = response?.data ?? {};
 
         console.log("PivotFibonacci:", d);
 
@@ -1641,7 +1658,7 @@ async function fetchDataForIndicators(
         };
       }
       case "PivotPoints(Camarilla)": {
-        const d = response.data ?? {};
+        const d = response?.data ?? {};
 
         console.log("Pivot Camarilla:", d);
 
@@ -1662,7 +1679,7 @@ async function fetchDataForIndicators(
       }
 
       case "PivotPoints(Classic)": {
-        const d = response.data ?? {};
+        const d = response?.data ?? {};
 
         console.log("Pivot Classic:", d);
 
@@ -1684,7 +1701,7 @@ async function fetchDataForIndicators(
         return {
           type: "single",
           data:
-            response.data
+            response?.data
               ?.filter((d) => d.ad != null && d.time != null)
               .map((d) => ({
                 time: Number(d.time) + IST_OFFSET,
@@ -1698,16 +1715,16 @@ async function fetchDataForIndicators(
         return {
           type: "multi",
           data: {
-            conversionLine: mapLine(response.data, "conversionLine"),
-            baseLine: mapLine(response.data, "baseLine"),
+            conversionLine: mapLine(response?.data, "conversionLine"),
+            baseLine: mapLine(response?.data, "baseLine"),
 
-            leadLine1: mapLine(response.data, "leadLine1"),
-            leadLine2: mapLine(response.data, "leadLine2"),
+            leadLine1: mapLine(response?.data, "leadLine1"),
+            leadLine2: mapLine(response?.data, "leadLine2"),
 
-            laggingSpan: mapLine(response.data, "laggingSpan"),
+            laggingSpan: mapLine(response?.data, "laggingSpan"),
 
-            kumoCloudUpper: mapLine(response.data, "kumoCloudUpper"),
-            kumoCloudLower: mapLine(response.data, "kumoCloudLower"),
+            kumoCloudUpper: mapLine(response?.data, "kumoCloudUpper"),
+            kumoCloudLower: mapLine(response?.data, "kumoCloudLower"),
           },
         };
       case "ChandeKrollStop":
@@ -1715,7 +1732,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             longStop:
-              response.data
+              response?.data
                 ?.filter((d) => d.longStop != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1723,7 +1740,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             shortStop:
-              response.data
+              response?.data
                 ?.filter((d) => d.shortStop != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1737,7 +1754,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             k:
-              response.data
+              response?.data
                 ?.filter((d) => d.stochastick != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1745,7 +1762,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             d:
-              response.data
+              response?.data
                 ?.filter((d) => d.stochasticd != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1780,7 +1797,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             macd:
-              response.data
+              response?.data
                 ?.filter((d) => d.macd != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1788,7 +1805,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             signal:
-              response.data
+              response?.data
                 ?.filter((d) => d.signal != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1796,7 +1813,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             histogram:
-              response.data
+              response?.data
                 ?.filter((d) => d.hist != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1810,7 +1827,7 @@ async function fetchDataForIndicators(
           type: "single",
           data: {
             cmo:
-              response.data
+              response?.data
                 ?.filter((d) => d.cmo != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1845,7 +1862,7 @@ async function fetchDataForIndicators(
           type: "triple",
           data: {
             upper:
-              response.data
+              response?.data
                 ?.filter((d) => d.upper != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1853,7 +1870,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             lower:
-              response.data
+              response?.data
                 ?.filter((d) => d.lower != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1861,7 +1878,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             basis:
-              response.data
+              response?.data
                 ?.filter((d) => d.basis != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1875,7 +1892,7 @@ async function fetchDataForIndicators(
           type: "multi",
           data: {
             fisherLine:
-              response.data
+              response?.data
                 ?.filter((d) => d.fish != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1883,7 +1900,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             triggerLine:
-              response.data
+              response?.data
                 ?.filter((d) => d.trigger != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1897,7 +1914,7 @@ async function fetchDataForIndicators(
           type: "triple",
           data: {
             upper:
-              response.data
+              response?.data
                 ?.filter((d) => d.upper != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1905,7 +1922,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             lower:
-              response.data
+              response?.data
                 ?.filter((d) => d.lower != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1913,7 +1930,7 @@ async function fetchDataForIndicators(
                 })) ?? [],
 
             middle:
-              response.data
+              response?.data
                 ?.filter((d) => d.middle != null && d.time != null)
                 .map((d) => ({
                   time: Number(d.time) + IST_OFFSET,
@@ -1932,6 +1949,44 @@ async function fetchDataForIndicators(
                 time: Number(d.time) + IST_OFFSET,
                 value: Number(d.ao),
               })) ?? [],
+        };
+
+      case "MA_RIBBON":
+        return {
+          type: "multi",
+          data: {
+            ma1:
+              response?.data
+                ?.filter((d) => d.ma1 != null && d.time != null)
+                .map((d) => ({
+                  time: Number(d.time) + IST_OFFSET,
+                  value: d.ma1,
+                })) ?? [],
+
+            ma2:
+              response?.data
+                ?.filter((d) => d.ma2 != null && d.time != null)
+                .map((d) => ({
+                  time: Number(d.time) + IST_OFFSET,
+                  value: d.ma2,
+                })) ?? [],
+
+            ma3:
+              response?.data
+                ?.filter((d) => d.ma3 != null && d.time != null)
+                .map((d) => ({
+                  time: Number(d.time) + IST_OFFSET,
+                  value: d.ma3,
+                })) ?? [],
+
+            ma4:
+              response?.data
+                ?.filter((d) => d.ma4 != null && d.time != null)
+                .map((d) => ({
+                  time: Number(d.time) + IST_OFFSET,
+                  value: d.ma4,
+                })) ?? [],
+          },
         };
 
       default:

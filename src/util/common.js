@@ -1893,6 +1893,29 @@ export const getRowsByIndicator = (indicator, maType, indicatorConfigs) => {
         },
       ];
     }
+    case "MA_RIBBON":
+  return [
+    {
+      key: "ma1",
+      label: "MA #1",
+      type: "line",
+    },
+    {
+      key: "ma2",
+      label: "MA #2",
+      type: "line",
+    },
+    {
+      key: "ma3",
+      label: "MA #3",
+      type: "line",
+    },
+    {
+      key: "ma4",
+      label: "MA #4",
+      type: "line",
+    },
+  ];
 
     default:
       return [];

@@ -11,7 +11,7 @@ const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
-})
+});
 
 // 🔹 Request Interceptor (Auth, logging, etc.)
 api.interceptors.request.use((config) => {
@@ -23,7 +23,6 @@ api.interceptors.request.use((config) => {
 
   return config;
 });
-
 
 // 🔹 Response Interceptor
 api.interceptors.response.use(

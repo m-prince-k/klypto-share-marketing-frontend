@@ -350,6 +350,97 @@ export default function IndicatorPropertyDialog({
           </>
         );
 
+      case "MA_RIBBON":
+        return (
+          <>
+            {["ma1", "ma2", "ma3", "ma4"].map((maKey, index) => (
+              <div key={maKey} className="border rounded p-3 mb-3">
+                <div className="form-check mb-3">
+                  <input
+                    className="form-check-input"
+                    type="checkbox"
+                    checked={currentConfig[maKey]?.enabled ?? true}
+                    onChange={(e) =>
+                      updateProperty(maKey, {
+                        ...currentConfig[maKey],
+                        enabled: e.target.checked,
+                      })
+                    }
+                  />
+                  <label className="form-check-label">MA #{index + 1}</label>
+                </div>
+
+                {/* MA TYPE */}
+                <div className="mb-3">
+                  <label className="form-label">Type</label>
+                  <select
+                    className="form-select"
+                    value={currentConfig[maKey]?.type}
+                    onChange={(e) =>
+                      updateProperty(maKey, {
+                        ...currentConfig[maKey],
+                        type: e.target.value,
+                      })
+                    }
+                  >
+                    {["EMA", "SMA", "WMA", "VWMA"].map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* SOURCE */}
+                <div className="mb-3">
+                  <label className="form-label">Source</label>
+                  <select
+                    className="form-select"
+                    value={currentConfig[maKey]?.source}
+                    onChange={(e) =>
+                      updateProperty(maKey, {
+                        ...currentConfig[maKey],
+                        source: e.target.value,
+                      })
+                    }
+                  >
+                    {[
+                      "Close",
+                      "Open",
+                      "High",
+                      "Low",
+                      "HL2",
+                      "HLC3",
+                      "OHLC4",
+                    ].map((opt) => (
+                      <option key={opt} value={opt.toLowerCase()}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* LENGTH */}
+                <div className="mb-3">
+                  <label className="form-label">Length</label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="form-control"
+                    value={currentConfig[maKey]?.length}
+                    onChange={(e) =>
+                      updateProperty(maKey, {
+                        ...currentConfig[maKey],
+                        length: Math.max(1, Number(e.target.value)),
+                      })
+                    }
+                  />
+                </div>
+              </div>
+            ))}
+          </>
+        );
+
       case "SSL_HYBRID":
         return (
           <>

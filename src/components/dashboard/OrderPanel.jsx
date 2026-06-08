@@ -118,17 +118,34 @@ const OrderPanel = ({
   const parseSymbolName = (fullName) => {
     if (!fullName || typeof fullName !== "string")
       return { base: fullName, hasExpiry: false };
-    const match = fullName.match(
-      /^([A-Z][A-Z0-9-]+?)\s+(\d{1,2}[A-Z]{3}\d{2,4})\s*(.*)$/i,
+
+    // Format 1: "ADANIPORTS 30JUN2026 1720 CE" (compact, no spaces in date)
+    const match1 = fullName.match(
+      /^([A-Z][A-Z0-9&-]+?)\s+(\d{1,2}[A-Z]{3}\d{2,4})\s*(.*)$/i,
     );
-    if (match) {
+    if (match1) {
       return {
-        base: match[1].trim(),
-        expiry: match[2].trim(),
-        suffix: match[3].trim(),
+        base: match1[1].trim(),
+        expiry: match1[2].trim(),
+        suffix: match1[3].trim(),
         hasExpiry: true,
       };
     }
+
+    // Format 2: "ADANIPORTS 30 Jun 2026 1720 CE" (spaced month name, e.g. from OptionChain)
+    const match2 = fullName.match(
+      /^([A-Z][A-Z0-9&-]+?)\s+(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})\s*(.*)$/i,
+    );
+    if (match2) {
+      return {
+        base: match2[1].trim(),
+        expiry: match2[2].trim(),
+        suffix: match2[3].trim(),
+        hasExpiry: true,
+      };
+    }
+
+    // No date found — treat entire string as the base symbol
     return { base: fullName, hasExpiry: false };
   };
 
@@ -227,15 +244,46 @@ const OrderPanel = ({
       if (stock.spot_price != null) setCurrentPrice(Number(stock.spot_price));
       else if (stock.ltp != null) setCurrentPrice(Number(stock.ltp));
     } else {
+      // stock can be a token string, token number, or a display string like
+      // "ADANIPORTS 30 Jun 2026 1720 CE" (passed via sessionStorage)
       const currentToken = stock?.token ?? stock;
-      const stockObj = stocks.find((s) => s.token === currentToken);
-      if (!stockObj) return;
-      const rawSymbol =
-        stockObj.symbol ??
-        stockObj.name ??
-        stockObj.userCode ??
-        stockObj.actualSymbol;
-      symbolForChain = parseSymbolName(rawSymbol).base;
+
+      // 1) Try exact token match
+      let stockObj = stocks.find((s) => s.token === currentToken);
+
+      // 2) Fallback: parse the display string and match by base symbol name
+      if (!stockObj && typeof stock === "string") {
+        const { base } = parseSymbolName(stock);
+        if (base) {
+          stockObj = stocks.find(
+            (s) =>
+              // Stock's symbol matches the parsed base (e.g. "ADANIPORTS" === "ADANIPORTS")
+              (s.symbol ?? s.name ?? s.userCode ?? "")
+                .toUpperCase() === base.toUpperCase()
+              // or stock string starts with the stock's symbol
+              || stock.toUpperCase().startsWith(
+                  (s.symbol ?? s.name ?? s.userCode ?? "").toUpperCase() + " "
+                ),
+          );
+        }
+      }
+
+      if (stockObj) {
+        setSelectedStockObj(stockObj);
+        const rawSymbol =
+          stockObj.symbol ??
+          stockObj.name ??
+          stockObj.userCode ??
+          stockObj.actualSymbol;
+        symbolForChain = parseSymbolName(rawSymbol).base;
+      } else if (typeof stock === "string") {
+        // Still can't find in watchlist — use the parsed base symbol directly
+        // so we can still subscribe to live-options-list
+        const { base } = parseSymbolName(stock);
+        symbolForChain = base ?? stock;
+      } else {
+        return;
+      }
     }
 
     // Track which symbol we subscribed to (used to filter incoming events)
@@ -594,9 +642,29 @@ const OrderPanel = ({
     setValidationMsg("");
     setAction(selectedAction);
 
-    const currentToken = stock?.token ?? stock;
-    const stockObj =
-      selectedStockObj ?? stocks.find((s) => s.token === currentToken);
+    // Resolve the stock object:
+    //   (a) already set via effect #2 → use selectedStockObj
+    //   (b) contract object passed directly → use stock itself
+    //   (c) display string "SYMBOL DATE STRIKE TYPE" → match by base symbol
+    const isContractObj = stock && typeof stock === "object" && stock.symbol;
+    let stockObj;
+    if (selectedStockObj) {
+      stockObj = selectedStockObj;
+    } else if (isContractObj) {
+      stockObj = stock;
+    } else {
+      const currentToken = stock?.token ?? stock;
+      stockObj = stocks.find((s) => s.token === currentToken);
+      if (!stockObj && typeof stock === "string") {
+        const { base } = parseSymbolName(stock);
+        stockObj = stocks.find(
+          (s) =>
+            (s.symbol ?? s.name ?? s.userCode ?? "")
+              .toUpperCase()
+              .startsWith((base ?? "").toUpperCase()),
+        );
+      }
+    }
     if (!stockObj) {
       setValidationMsg("Selected stock not found. Please re-select.");
       return;
@@ -867,16 +935,10 @@ const OrderPanel = ({
           </div>
 
           <div
-            style={{
-              display: parseSymbolName(
-                selectedStockObj?.name ??
-                  selectedStockObj?.symbol ??
-                  stock?.name ??
-                  stock,
-              ).hasExpiry
-                ? "block"
-                : "none",
-            }}
+          style={{
+            // Show expiry whenever stock is set (contract strings always have expiry)
+            display: stock ? "block" : "none",
+          }}
           >
             <label style={s.label}>Expiry</label>
             <select
@@ -891,7 +953,8 @@ const OrderPanel = ({
               <option value="">
                 {chainLoading ? "Loading…" : "Select expiry"}
               </option>
-              {expiries.map((e) => (
+              {/* Always include the current expiry as an option, even while expiries[] loads */}
+              {[...new Set([...(expiry ? [expiry] : []), ...expiries])].map((e) => (
                 <option key={e} value={e}>
                   {e}
                 </option>
@@ -937,7 +1000,7 @@ const OrderPanel = ({
                 setStrategy(e.target.value);
                 setValidationMsg("");
               }}
-              disabled={Object.keys(strikeMap).length === 0}
+              // disabled={Object.keys(strikeMap).length === 0}
             >
               <option value="">Select strategy</option>
               {Object.keys(strikeMap).map((k) => (

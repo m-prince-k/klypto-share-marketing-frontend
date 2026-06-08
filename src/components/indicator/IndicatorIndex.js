@@ -106,6 +106,8 @@ import VWMAPlot from "./VWMA/VWMAPlot";
 import TMAPlot from "./TMA/TMAPlot";
 import TMAInput from "./TMA/TMAInput";
 import SSLPlot from "./SSL/SSLPlot";
+import MARibbonPlot from "./MARibbon/MARibbonPlot";
+import MARibbonInput from "./MARibbon/MARibbonInput";
 
 export const indicatorComponents = {
   VWAP: VWAPPlot,
@@ -165,6 +167,7 @@ export const indicatorComponents = {
   VWMA: VWMAPlot,
   TMA: TMAPlot,
   SSL_HYBRID: SSLPlot,
+  MA_RIBBON: MARibbonPlot,
 };
 
 export const indicatorInputs = {
@@ -223,6 +226,7 @@ export const indicatorInputs = {
   TR: TRInput,
   VWMA: VWMAInput,
   TMA: TMAInput,
+  MA_RIBBON: MARibbonInput,
 };
 
 export function updateIndicatorFromInput(

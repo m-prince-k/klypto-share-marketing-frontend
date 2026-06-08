@@ -89,9 +89,16 @@ export default function Candlestick() {
     // Load Pyodide WebAssembly script dynamically
     if (window.loadPyodide) {
       if (!pyodideRef.current) {
-        window.loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.25.0/full/" })
+        window
+          .loadPyodide({
+            indexURL: "https://cdn.jsdelivr.net/pyodide/v0.25.0/full/",
+          })
           .then(async (pyodide) => {
-            try { await pyodide.loadPackage("pandas"); } catch(e) { console.error(e); }
+            try {
+              await pyodide.loadPackage("pandas");
+            } catch (e) {
+              console.error(e);
+            }
             pyodideRef.current = pyodide;
             setIsPyodideReady(true);
           });
@@ -100,9 +107,16 @@ export default function Candlestick() {
       const script = document.createElement("script");
       script.src = "https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js";
       script.onload = () => {
-        window.loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.25.0/full/" })
+        window
+          .loadPyodide({
+            indexURL: "https://cdn.jsdelivr.net/pyodide/v0.25.0/full/",
+          })
           .then(async (pyodide) => {
-            try { await pyodide.loadPackage("pandas"); } catch(e) { console.error(e); }
+            try {
+              await pyodide.loadPackage("pandas");
+            } catch (e) {
+              console.error(e);
+            }
             pyodideRef.current = pyodide;
             setIsPyodideReady(true);
           });
@@ -113,123 +127,202 @@ export default function Candlestick() {
 
   const handleClearCode = useCallback(() => {
     if (customScriptSeriesRef.current && chartRef.current) {
-       if (Array.isArray(customScriptSeriesRef.current)) {
-           customScriptSeriesRef.current.forEach(series => {
-              try { chartRef.current.removeSeries(series); } catch(e){}
-           });
-       } else {
-           try { chartRef.current.removeSeries(customScriptSeriesRef.current); } catch(e){}
-       }
-       customScriptSeriesRef.current = null;
+      if (Array.isArray(customScriptSeriesRef.current)) {
+        customScriptSeriesRef.current.forEach((series) => {
+          try {
+            chartRef.current.removeSeries(series);
+          } catch (e) {}
+        });
+      } else {
+        try {
+          chartRef.current.removeSeries(customScriptSeriesRef.current);
+        } catch (e) {}
+      }
+      customScriptSeriesRef.current = null;
     }
     if (customScriptMarkersRef.current) {
-       try { customScriptMarkersRef.current.setMarkers([]); } catch(e){}
+      try {
+        customScriptMarkersRef.current.setMarkers([]);
+      } catch (e) {}
     }
     setCustomSignals([]);
     setIsDeployed(false);
   }, []);
 
-  const handleDeployCode = useCallback(async (code) => {
-    if (!chartRef.current) return;
-    
-    // 1. Clear previous
-    handleClearCode();
+  const handleDeployCode = useCallback(
+    async (code) => {
+      if (!chartRef.current) return;
 
-    if (!pyodideRef.current || !isPyodideReady) {
-       Swal.fire({
-          icon: 'warning',
-          title: 'Not Ready',
-          text: 'The Python compiler is downloading in the background. Please wait a few seconds and try again.',
-          background: 'var(--bg-secondary)',
-          color: 'var(--text-primary)'
-       });
-       return;
-    }
+      // 1. Clear previous
+      handleClearCode();
 
-    if (!code || code.trim() === "") {
-       Swal.fire({
-          icon: 'warning',
-          title: 'Empty Code',
-          text: 'Please write some code before deploying.',
-          background: 'var(--bg-secondary)',
-          color: 'var(--text-primary)'
-       });
-       return;
-    }
-
-    setIsDeploying(true);
-    // 2. Plot using real Python WebAssembly engine
-    try {
-      const closes = candlesRef?.current?.map(c => c.close) || [];
-      if (closes.length < 4) {
-         Swal.fire({ icon: 'warning', title: 'Insufficient Data', text: 'Not enough candle data to plot indicator.', background: 'var(--bg-secondary)', color: 'var(--text-primary)' });
-         return;
+      if (!pyodideRef.current || !isPyodideReady) {
+        Swal.fire({
+          icon: "warning",
+          title: "Not Ready",
+          text: "The Python compiler is downloading in the background. Please wait a few seconds and try again.",
+          background: "var(--bg-secondary)",
+          color: "var(--text-primary)",
+        });
+        return;
       }
-      
-      toast.info("Compiling Python script...", { autoClose: 2000, toastId: "compiling" });
 
-      const pyodide = pyodideRef.current;
-      
-      // Ensure required packages are fully loaded before execution
-      await pyodide.loadPackagesFromImports(code);
+      if (!code || code.trim() === "") {
+        Swal.fire({
+          icon: "warning",
+          title: "Empty Code",
+          text: "Please write some code before deploying.",
+          background: "var(--bg-secondary)",
+          color: "var(--text-primary)",
+        });
+        return;
+      }
 
-      // Inject close prices as a global Javascript array into Python
-      pyodide.globals.set("close", closes);
+      setIsDeploying(true);
+      // 2. Plot using real Python WebAssembly engine
+      try {
+        const closes = candlesRef?.current?.map((c) => c.close) || [];
+        if (closes.length < 4) {
+          Swal.fire({
+            icon: "warning",
+            title: "Insufficient Data",
+            text: "Not enough candle data to plot indicator.",
+            background: "var(--bg-secondary)",
+            color: "var(--text-primary)",
+          });
+          return;
+        }
 
-      // Setup the plotting bridge to catch the output
-      const pythonSetup = `
+        toast.info("Compiling Python script...", {
+          autoClose: 2000,
+          toastId: "compiling",
+        });
+
+        const pyodide = pyodideRef.current;
+
+        // Ensure required packages are fully loaded before execution
+        await pyodide.loadPackagesFromImports(code);
+
+        // Inject close prices as a global Javascript array into Python
+        pyodide.globals.set("close", closes);
+        const opens = candlesRef?.current?.map((c) => c.open) || [];
+        const highs = candlesRef?.current?.map((c) => c.high) || [];
+        const lows = candlesRef?.current?.map((c) => c.low) || [];
+        const volumes = candlesRef?.current?.map((c) => c.volume || 0) || [];
+        const timestamps = candlesRef?.current?.map((c) => c.time) || [];
+
+        pyodide.globals.set("open", opens);
+        pyodide.globals.set("high", highs);
+        pyodide.globals.set("low", lows);
+        pyodide.globals.set("close", closes);
+        pyodide.globals.set("volume", volumes);
+        pyodide.globals.set("datetime", timestamps);
+
+        // Setup the plotting bridge to catch the output
+        const pythonSetup = `
 import js
+
 _plotted_series = []
 _plotted_markers = []
 
 def plot(name, data):
-    import builtins
-    if isinstance(data, list):
-        _plotted_series.append({"name": name, "data": data})
-    else:
-        # Automatically handle pandas Series / numpy arrays
-        try:
-            _plotted_series.append({"name": name, "data": data.tolist()})
-        except:
-            pass
+    try:
+        if isinstance(data, list):
+            _plotted_series.append({
+                "name": name,
+                "data": data
+            })
+        else:
+            _plotted_series.append({
+                "name": name,
+                "data": data.tolist()
+            })
+    except Exception:
+        pass
+
 
 def plot_markers(markers):
-    if isinstance(markers, list):
-        _plotted_markers.extend(markers)
+    try:
+        if isinstance(markers, list):
+            _plotted_markers.extend(markers)
+    except Exception:
+        pass
+
+
+def buy(index):
+    _plotted_markers.append({
+        "index": int(index),
+        "type": "BUY"
+    })
+
+
+def sell(index):
+    _plotted_markers.append({
+        "index": int(index),
+        "type": "SELL"
+    })
+
+
+def signal(signal_type, index):
+    _plotted_markers.append({
+        "index": int(index),
+        "type": str(signal_type).upper()
+    })
 `;
-      await pyodide.runPythonAsync(pythonSetup);
-      
-      // Execute User's actual code
-      await pyodide.runPythonAsync(code);
+        await pyodide.runPythonAsync(pythonSetup);
 
-      // Fetch the plotted results back into Javascript
-      const plottedSeriesProxy = pyodide.globals.get("_plotted_series");
-      const plottedSeries = plottedSeriesProxy ? plottedSeriesProxy.toJs() : [];
+        // Execute User's actual code
+        await pyodide.runPythonAsync(code);
 
-      const plottedMarkersProxy = pyodide.globals.get("_plotted_markers");
-      const plottedMarkers = plottedMarkersProxy ? plottedMarkersProxy.toJs() : [];
+        // Fetch the plotted results back into Javascript
+        const plottedSeriesProxy = pyodide.globals.get("_plotted_series");
+        const plottedSeries = plottedSeriesProxy
+          ? plottedSeriesProxy.toJs()
+          : [];
 
-      if ((!plottedSeries || plottedSeries.length === 0) && (!plottedMarkers || plottedMarkers.length === 0)) {
-         Swal.fire({ icon: 'warning', title: 'No Plot Data', text: 'Script executed successfully but did not call plot(). Make sure you end your script with plot("Name", data) or plot_markers(data)', background: 'var(--bg-secondary)', color: 'var(--text-primary)' });
-         return;
-      }
+        const plottedMarkersProxy = pyodide.globals.get("_plotted_markers");
+        const plottedMarkers = plottedMarkersProxy
+          ? plottedMarkersProxy.toJs()
+          : [];
 
-      // Map Python list values back to Unix timestamps and plot each series
-      customScriptSeriesRef.current = [];
-      const colors = ["var(--accent-color)", "var(--danger-color)", "#22ab94", "#ff9800", "#9c27b0", "#e91e63"];
+        if (
+          (!plottedSeries || plottedSeries.length === 0) &&
+          (!plottedMarkers || plottedMarkers.length === 0)
+        ) {
+          Swal.fire({
+            icon: "warning",
+            title: "No Plot Data",
+            text: 'Script executed successfully but did not call plot(). Make sure you end your script with plot("Name", data) or plot_markers(data)',
+            background: "var(--bg-secondary)",
+            color: "var(--text-primary)",
+          });
+          return;
+        }
 
-      if (plottedSeries && plottedSeries.length > 0) {
-        plottedSeries.forEach((seriesMap, seriesIndex) => {
-            const seriesName = seriesMap.get("name") || `Indicator ${seriesIndex + 1}`;
+        // Map Python list values back to Unix timestamps and plot each series
+        customScriptSeriesRef.current = [];
+        const colors = [
+          "var(--accent-color)",
+          "var(--danger-color)",
+          "#22ab94",
+          "#ff9800",
+          "#9c27b0",
+          "#e91e63",
+        ];
+
+        if (plottedSeries && plottedSeries.length > 0) {
+          plottedSeries.forEach((seriesMap, seriesIndex) => {
+            const seriesName =
+              seriesMap.get("name") || `Indicator ${seriesIndex + 1}`;
             const seriesDataArray = seriesMap.get("data");
 
             const indicatorData = candlesRef.current
               .map((candle, index) => {
-                 const val = seriesDataArray[index];
-                 return {
-                   time: candle.time,
-                   value: typeof val === "number" ? val : null,
-                 };
+                const val = seriesDataArray[index];
+                return {
+                  time: candle.time,
+                  value: typeof val === "number" ? val : null,
+                };
               })
               .filter((x) => x.value !== null && !isNaN(x.value));
 
@@ -239,86 +332,103 @@ def plot_markers(markers):
                 color: colors[seriesIndex % colors.length],
                 lineWidth: 2,
               });
-              
+
               lineSeries.setData(indicatorData);
               customScriptSeriesRef.current.push(lineSeries);
             }
-        });
-      }
+          });
+        }
 
-      if (plottedMarkers && plottedMarkers.length > 0) {
+        if (plottedMarkers && plottedMarkers.length > 0) {
           const markersToSet = [];
           const newSignals = [];
-          plottedMarkers.forEach(markerMap => {
-              const idx = markerMap.get("index");
-              const type = markerMap.get("type");
-              const candle = candlesRef.current[idx];
-              if (candle && type) {
-                  const isBuy = type.toUpperCase() === "BUY";
-                  markersToSet.push({
-                      time: candle.time,
-                      position: isBuy ? "belowBar" : "aboveBar",
-                      color: isBuy ? "#22ab94" : "var(--danger-color)",
-                      shape: isBuy ? "arrowUp" : "arrowDown",
-                      text: isBuy ? "BUY" : "SELL",
-                      size: 1
-                  });
+          plottedMarkers.forEach((markerMap) => {
+            const idx = markerMap.get("index");
+            const type = markerMap.get("type");
+            const candle = candlesRef.current[idx];
+            if (candle && type) {
+              const isBuy = type.toUpperCase() === "BUY";
+              markersToSet.push({
+                time: candle.time,
+                position: isBuy ? "belowBar" : "aboveBar",
+                color: isBuy ? "#22ab94" : "var(--danger-color)",
+                shape: isBuy ? "arrowUp" : "arrowDown",
+                text: isBuy ? "BUY" : "SELL",
+                size: 1,
+              });
 
-                  let ts = candle.time;
-                  if (typeof ts === 'object' && ts.year) {
-                      ts = new Date(ts.year, ts.month - 1, ts.day).getTime();
-                  } else if (typeof ts === 'number' && ts < 10000000000) {
-                      ts = (ts - 19800) * 1000;
-                  }
-                  
-                  const d = new Date(ts);
-                  const dateStr = d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' });
-                  const timeStr = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' });
-
-                  newSignals.unshift({
-                      symbol: selectedCurrency?.name || "STOCK",
-                      name: selectedCurrency?.name || "STOCK",
-                      token: selectedCurrency?.token,
-                      signalType: isBuy ? "BUY" : "SELL",
-                      timestamp: `${dateStr} ${timeStr}`,
-                      segment: "SCRIPT",
-                  });
+              let ts = candle.time;
+              if (typeof ts === "object" && ts.year) {
+                ts = new Date(ts.year, ts.month - 1, ts.day).getTime();
+              } else if (typeof ts === "number" && ts < 10000000000) {
+                ts = (ts - 19800) * 1000;
               }
+
+              const d = new Date(ts);
+              const dateStr = d.toLocaleDateString("en-IN", {
+                timeZone: "Asia/Kolkata",
+              });
+              const timeStr = d.toLocaleTimeString("en-IN", {
+                timeZone: "Asia/Kolkata",
+              });
+
+              newSignals.unshift({
+                symbol: selectedCurrency?.name || "STOCK",
+                name: selectedCurrency?.name || "STOCK",
+                token: selectedCurrency?.token,
+                signalType: isBuy ? "BUY" : "SELL",
+                timestamp: `${dateStr} ${timeStr}`,
+                segment: "SCRIPT",
+              });
+            }
           });
 
           if (markersToSet.length > 0 && seriesRef.current) {
-              if (!customScriptMarkersRef.current) {
-                  customScriptMarkersRef.current = createSeriesMarkers(seriesRef.current, markersToSet);
-              } else {
-                  customScriptMarkersRef.current.setMarkers(markersToSet);
-              }
+            if (!customScriptMarkersRef.current) {
+              customScriptMarkersRef.current = createSeriesMarkers(
+                seriesRef.current,
+                markersToSet,
+              );
+            } else {
+              customScriptMarkersRef.current.setMarkers(markersToSet);
+            }
           }
           setCustomSignals(newSignals);
-      } else {
+        } else {
           setCustomSignals([]);
-      }
+        }
 
-      if (customScriptSeriesRef.current.length > 0 || (plottedMarkers && plottedMarkers.length > 0)) {
-        setIsDeployed(true);
-        toast.success("Python compiled and plotted successfully!", { toastId: "script-success" });
-      } else {
-        toast.error("No valid indicator data calculated.", { toastId: "script-error" });
-      }
-    } catch (err) {
-      console.error("Pyodide execution error:", err);
-      Swal.fire({
-          icon: 'error',
-          title: 'Python Execution Error',
+        if (
+          customScriptSeriesRef.current.length > 0 ||
+          (plottedMarkers && plottedMarkers.length > 0)
+        ) {
+          setIsDeployed(true);
+          toast.success("Python compiled and plotted successfully!", {
+            toastId: "script-success",
+          });
+        } else {
+          toast.error("No valid indicator data calculated.", {
+            toastId: "script-error",
+          });
+        }
+      } catch (err) {
+        console.error("Pyodide execution error:", err);
+        Swal.fire({
+          icon: "error",
+          title: "Python Execution Error",
           text: err.message,
-          background: 'var(--bg-secondary)',
-          color: 'var(--text-primary)'
-      });
-    } finally {
-      setIsDeploying(false);
-    }
-  }, [handleClearCode, isPyodideReady]);
+          background: "var(--bg-secondary)",
+          color: "var(--text-primary)",
+        });
+      } finally {
+        setIsDeploying(false);
+      }
+    },
+    [handleClearCode, isPyodideReady],
+  );
 
-  const { matchedCoins, addAlert, clearAllCoins, scanner, removeCoin } = useAlerts();
+  const { matchedCoins, addAlert, clearAllCoins, scanner, removeCoin } =
+    useAlerts();
 
   const [isWatchlistOpen, setIsWatchlistOpen] = useState(true);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -341,7 +451,9 @@ def plot_markers(markers):
   const [liveOhlcv, setLiveOhlcv] = useState({});
   const [liveIndicatorData, setLiveIndicatorData] = useState({});
   const [isCodeEditorOpen, setIsCodeEditorOpen] = useState(false);
-  const [editorCode, setEditorCode] = useState("import pandas as pd\n\n# Example user code\n");
+  const [editorCode, setEditorCode] = useState(
+    "import pandas as pd\n\n# Example user code\n",
+  );
   const [openScannerTrigger, setOpenScannerTrigger] = useState(0);
   const [customSignals, setCustomSignals] = useState([]);
   const [isDeploying, setIsDeploying] = useState(false);
@@ -608,7 +720,12 @@ def plot_markers(markers):
         if (paneObj) {
           const div = paneObj.getHTMLElement();
           if (div) {
-            console.log("💎 Populating panesRef for", indicator, "at index", paneIndex);
+            console.log(
+              "💎 Populating panesRef for",
+              indicator,
+              "at index",
+              paneIndex,
+            );
             panesRef.current[indicator] = {
               chart: chartRef.current,
               pane: paneObj,
@@ -1281,8 +1398,10 @@ def plot_markers(markers):
           );
         }
         if (last && actionButtonsRef.current) {
-          const buyPrice = actionButtonsRef.current.querySelector("[data-buy-price]");
-          const sellPrice = actionButtonsRef.current.querySelector("[data-sell-price]");
+          const buyPrice =
+            actionButtonsRef.current.querySelector("[data-buy-price]");
+          const sellPrice =
+            actionButtonsRef.current.querySelector("[data-sell-price]");
           const formattedClose = Number(last.close).toFixed(2);
           if (buyPrice) buyPrice.textContent = formattedClose;
           if (sellPrice) sellPrice.textContent = formattedClose;
@@ -1391,8 +1510,10 @@ def plot_markers(markers):
         }
 
         if (actionButtonsRef.current) {
-          const buyPrice = actionButtonsRef.current.querySelector("[data-buy-price]");
-          const sellPrice = actionButtonsRef.current.querySelector("[data-sell-price]");
+          const buyPrice =
+            actionButtonsRef.current.querySelector("[data-buy-price]");
+          const sellPrice =
+            actionButtonsRef.current.querySelector("[data-sell-price]");
           const formattedClose = Number(updatedBar.close).toFixed(2);
           if (buyPrice) buyPrice.textContent = formattedClose;
           if (sellPrice) sellPrice.textContent = formattedClose;
@@ -1410,7 +1531,7 @@ def plot_markers(markers):
               symbol: selectedCurrency?.name,
               interval: timeframeValue,
               type: indType,
-              
+
               exchange: selectedCurrency?.segment,
             });
           });
@@ -1572,7 +1693,12 @@ def plot_markers(markers):
               }}
             >
               <div style={{ width: "300px", height: "100%" }}>
-                <div style={{ display: activeTab === "Alerts" ? "block" : "none", height: "100%" }}>
+                <div
+                  style={{
+                    display: activeTab === "Alerts" ? "block" : "none",
+                    height: "100%",
+                  }}
+                >
                   <LeftAlertListing
                     onClose={() => setIsWatchlistOpen(false)}
                     alertResult={customSignals}
@@ -1581,13 +1707,29 @@ def plot_markers(markers):
                     setActiveTab={setActiveTab}
                   />
                 </div>
-                <div style={{ display: activeTab !== "Alerts" && isWatchlistOpen ? "block" : "none", height: "100%" }}>
+                <div
+                  style={{
+                    display:
+                      activeTab !== "Alerts" && isWatchlistOpen
+                        ? "block"
+                        : "none",
+                    height: "100%",
+                  }}
+                >
                   <LeftWatchlist
                     onClose={() => setIsWatchlistOpen(false)}
                     setSelectedCurrency={setSelectedCurrency}
                   />
                 </div>
-                <div style={{ display: activeTab !== "Alerts" && isDetailsOpen ? "block" : "none", height: "100%" }}>
+                <div
+                  style={{
+                    display:
+                      activeTab !== "Alerts" && isDetailsOpen
+                        ? "block"
+                        : "none",
+                    height: "100%",
+                  }}
+                >
                   <LeftDetail
                     onClose={() => setIsDetailsOpen(false)}
                     selectedCurrency={selectedCurrency}
@@ -1623,7 +1765,11 @@ def plot_markers(markers):
                 transition: "border-color 0.3s ease",
               }}
             >
-              <ChartTabs activeTab={activeTab} setActiveTab={setActiveTab} onCodeClick={() => setIsCodeEditorOpen(prev => !prev)} />
+              <ChartTabs
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+                onCodeClick={() => setIsCodeEditorOpen((prev) => !prev)}
+              />
 
               <div
                 style={{
@@ -1669,59 +1815,68 @@ def plot_markers(markers):
                 </div>
 
                 <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-                  <div className="chart-and-panes-wrapper" style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0, overflow: "hidden", position: "relative" }}>
-
-                {/* main chart */}
-                <div
-                  ref={containerRef}
-                  style={{
-                    width: "100%",
-                    flex: 1,
-                    position: "relative",
-                    overflow: "hidden",
-                    display: "flex",
-                    flexDirection: "column",
-                  }}
-                >
-                  {mainChartLoading || isDeploying ? (
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: "50%",
-                        left: "50%",
-                        transform: "translate(-50%, -50%)",
-                        zIndex: 1000,
-                      }}
-                    >
-                      <Spinner />
-                    </div>
-                  ) : (
-                    indicatorLoading && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: "50%",
-                          left: "50%",
-                          transform: "translate(-50%, -50%)",
-                          zIndex: 1000,
-                        }}
-                      >
-                        <Spinner />
-                      </div>
-                    )
-                  )}
-                  {/* -------------------------------sub-header live Values----------------------- */}
                   <div
-                    className="position-absolute top-0 start-0"
+                    className="chart-and-panes-wrapper"
                     style={{
-                      zIndex: 10,
                       display: "flex",
                       flexDirection: "column",
-                      gap: 8,
-                      padding: "8px",
+                      flex: 1,
+                      minWidth: 0,
+                      overflow: "hidden",
+                      position: "relative",
                     }}
                   >
-                    <style>{`
+                    {/* main chart */}
+                    <div
+                      ref={containerRef}
+                      style={{
+                        width: "100%",
+                        flex: 1,
+                        position: "relative",
+                        overflow: "hidden",
+                        display: "flex",
+                        flexDirection: "column",
+                      }}
+                    >
+                      {mainChartLoading || isDeploying ? (
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: "50%",
+                            left: "50%",
+                            transform: "translate(-50%, -50%)",
+                            zIndex: 1000,
+                          }}
+                        >
+                          <Spinner />
+                        </div>
+                      ) : (
+                        indicatorLoading && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              top: "50%",
+                              left: "50%",
+                              transform: "translate(-50%, -50%)",
+                              zIndex: 1000,
+                            }}
+                          >
+                            <Spinner />
+                          </div>
+                        )
+                      )}
+                      {/* -------------------------------sub-header live Values----------------------- */}
+                      <div
+                        className="position-absolute top-0 start-0"
+                        style={{
+                          zIndex: 10,
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 8,
+                          padding: "8px",
+                        }}
+                      >
+                        <style>{`
     @keyframes ping {
       75%, 100% { transform: scale(2); opacity: 0; }
     }
@@ -1734,190 +1889,227 @@ def plot_markers(markers):
     }
   `}</style>
 
-                    <div className="d-flex align-items-center gap-2">
-                      {/* Symbol + Timeframe */}
-                      <span
-                        style={{
-                          fontSize: 13,
-                          color: "var(--text-secondary)",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {selectedCurrency?.name} : {timeframeValue}{" "}
-                        {selectedCurrency?.segment}
-                      </span>
-
-                      {/* Market status dot */}
-                      <div
-                        style={{
-                          position: "relative",
-                          width: 12,
-                          height: 12,
-                          flexShrink: 0,
-                        }}
-                      >
-                        <span
-                          className="dot-ping"
-                          style={{
-                            background: isMarketOpen ? "#22c55e" : "#f87171",
-                          }}
-                        />
-                        <span
-                          style={{
-                            display: "block",
-                            width: 12,
-                            height: 12,
-                            borderRadius: "50%",
-                            background: isMarketOpen ? "#22c55e" : "#f87171",
-                            position: "relative",
-                          }}
-                        />
-                      </div>
-
-                      {/* OHLC Values */}
-                      {/* OHLC Values - direct DOM, zero re-render */}
-                      <div
-                        className="d-flex align-items-center gap-1"
-                        ref={ohlcvDisplayRef}
-                      >
-                        {SINGLE_VALUE_CHARTS.includes(chartType) ? (
+                        <div className="d-flex align-items-center gap-2">
+                          {/* Symbol + Timeframe */}
                           <span
-                            data-o=""
-                            data-val=""
                             style={{
                               fontSize: 13,
-                              fontWeight: 500,
-                              color: "var(--text-primary)",
-                              padding: "2px 6px",
+                              color: "var(--text-secondary)",
+                              whiteSpace: "nowrap",
                             }}
                           >
-                            --
+                            {selectedCurrency?.name} : {timeframeValue}{" "}
+                            {selectedCurrency?.segment}
                           </span>
-                        ) : (
-                          <>
+
+                          {/* Market status dot */}
+                          <div
+                            style={{
+                              position: "relative",
+                              width: 12,
+                              height: 12,
+                              flexShrink: 0,
+                            }}
+                          >
+                            <span
+                              className="dot-ping"
+                              style={{
+                                background: isMarketOpen
+                                  ? "#22c55e"
+                                  : "#f87171",
+                              }}
+                            />
                             <span
                               style={{
-                                fontSize: 13,
-                                fontWeight: 500,
-                                padding: "2px 5px",
-                                whiteSpace: "nowrap",
+                                display: "block",
+                                width: 12,
+                                height: 12,
+                                borderRadius: "50%",
+                                background: isMarketOpen
+                                  ? "#22c55e"
+                                  : "#f87171",
+                                position: "relative",
                               }}
-                            >
-                              <span style={{ color: "var(--text-secondary)" }}>O: </span>
+                            />
+                          </div>
+
+                          {/* OHLC Values */}
+                          {/* OHLC Values - direct DOM, zero re-render */}
+                          <div
+                            className="d-flex align-items-center gap-1"
+                            ref={ohlcvDisplayRef}
+                          >
+                            {SINGLE_VALUE_CHARTS.includes(chartType) ? (
                               <span
                                 data-o=""
                                 data-val=""
-                                style={{ color: "#22c55e" }}
+                                style={{
+                                  fontSize: 13,
+                                  fontWeight: 500,
+                                  color: "var(--text-primary)",
+                                  padding: "2px 6px",
+                                }}
                               >
                                 --
                               </span>
-                            </span>
-                            <span
+                            ) : (
+                              <>
+                                <span
+                                  style={{
+                                    fontSize: 13,
+                                    fontWeight: 500,
+                                    padding: "2px 5px",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  <span
+                                    style={{ color: "var(--text-secondary)" }}
+                                  >
+                                    O:{" "}
+                                  </span>
+                                  <span
+                                    data-o=""
+                                    data-val=""
+                                    style={{ color: "#22c55e" }}
+                                  >
+                                    --
+                                  </span>
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: 13,
+                                    fontWeight: 500,
+                                    padding: "2px 5px",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  <span
+                                    style={{ color: "var(--text-secondary)" }}
+                                  >
+                                    H:{" "}
+                                  </span>
+                                  <span
+                                    data-h=""
+                                    data-val=""
+                                    style={{ color: "#22c55e" }}
+                                  >
+                                    --
+                                  </span>
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: 13,
+                                    fontWeight: 500,
+                                    padding: "2px 5px",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  <span
+                                    style={{ color: "var(--text-secondary)" }}
+                                  >
+                                    L:{" "}
+                                  </span>
+                                  <span
+                                    data-l=""
+                                    data-val=""
+                                    style={{ color: "#22c55e" }}
+                                  >
+                                    --
+                                  </span>
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: 13,
+                                    fontWeight: 500,
+                                    padding: "2px 5px",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  <span
+                                    style={{ color: "var(--text-secondary)" }}
+                                  >
+                                    C:{" "}
+                                  </span>
+                                  <span
+                                    data-c=""
+                                    data-val=""
+                                    style={{ color: "#22c55e" }}
+                                  >
+                                    --
+                                  </span>
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        <div
+                          style={{ display: "flex", gap: "10px" }}
+                          ref={actionButtonsRef}
+                        >
+                          <Link
+                            to="/dashboard"
+                            state={{
+                              stock: selectedCurrency?.name,
+                              action: "BUY",
+                            }}
+                            style={{ textDecoration: "none" }}
+                          >
+                            <button
                               style={{
-                                fontSize: 13,
-                                fontWeight: 500,
-                                padding: "2px 5px",
-                                whiteSpace: "nowrap",
+                                padding: "10px 20px",
+                                border: "1px solid green",
+                                background: "rgba(16, 185, 129, 0.15)",
+                                color: "green",
+                                borderRadius: "6px",
+                                cursor: "pointer",
+                                fontWeight: "600",
                               }}
                             >
-                              <span style={{ color: "var(--text-secondary)" }}>H: </span>
-                              <span
-                                data-h=""
-                                data-val=""
-                                style={{ color: "#22c55e" }}
-                              >
-                                --
-                              </span>
-                            </span>
-                            <span
+                              Buy @<span data-buy-price>--</span>
+                            </button>
+                          </Link>
+
+                          <Link
+                            to="/dashboard"
+                            state={{
+                              stock: selectedCurrency?.name,
+                              action: "SELL",
+                            }}
+                            style={{ textDecoration: "none" }}
+                          >
+                            <button
                               style={{
-                                fontSize: 13,
-                                fontWeight: 500,
-                                padding: "2px 5px",
-                                whiteSpace: "nowrap",
+                                padding: "10px 20px",
+                                border: "1px solid red",
+                                background: "rgba(239, 68, 68, 0.15)",
+                                color: "red",
+                                borderRadius: "6px",
+                                cursor: "pointer",
+                                fontWeight: "600",
                               }}
                             >
-                              <span style={{ color: "var(--text-secondary)" }}>L: </span>
-                              <span
-                                data-l=""
-                                data-val=""
-                                style={{ color: "#22c55e" }}
-                              >
-                                --
-                              </span>
-                            </span>
-                            <span
-                              style={{
-                                fontSize: 13,
-                                fontWeight: 500,
-                                padding: "2px 5px",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              <span style={{ color: "var(--text-secondary)" }}>C: </span>
-                              <span
-                                data-c=""
-                                data-val=""
-                                style={{ color: "#22c55e" }}
-                              >
-                                --
-                              </span>
-                            </span>
-                          </>
-                        )}
+                              Sell @<span data-sell-price>--</span>
+                            </button>
+                          </Link>
+                        </div>
                       </div>
-                    </div>
 
-                    <div style={{ display: "flex", gap: "10px" }} ref={actionButtonsRef}>
-                      <Link to="/dashboard" state={{ stock: selectedCurrency?.name, action: "BUY" }} style={{ textDecoration: 'none' }}>
-                        <button
+                      {/* -----------------INDICATOR BAR------------------- */}
+
+                      {selectedIndicator?.length > 0 && (
+                        <div
                           style={{
-                            padding: "10px 20px",
-                            border: "1px solid green",
-                            background: "rgba(16, 185, 129, 0.15)",
-                            color: "green",
-                            borderRadius: "6px",
-                            cursor: "pointer",
-                            fontWeight: "600",
+                            position: "absolute",
+                            top: 90,
+                            left: 8,
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 4,
+                            zIndex: 50,
                           }}
                         >
-                          Buy @<span data-buy-price>--</span>
-                        </button>
-                      </Link>
-
-                      <Link to="/dashboard" state={{ stock: selectedCurrency?.name, action: "SELL" }} style={{ textDecoration: 'none' }}>
-                        <button
-                          style={{
-                            padding: "10px 20px",
-                            border: "1px solid red",
-                            background: "rgba(239, 68, 68, 0.15)",
-                            color: "red",
-                            borderRadius: "6px",
-                            cursor: "pointer",
-                            fontWeight: "600",
-                          }}
-                        >
-                          Sell @<span data-sell-price>--</span>
-                        </button>
-                      </Link>
-                    </div>
-                  </div>
-
-                  {/* -----------------INDICATOR BAR------------------- */}
-
-                  {selectedIndicator?.length > 0 && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: 90,
-                        left: 8,
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 4,
-                        zIndex: 50,
-                      }}
-                    >
-                      <style>{`
+                          <style>{`
     .ind-btn {
       background: transparent;
       border: none;
@@ -1931,129 +2123,132 @@ def plot_markers(markers):
     .ind-btn:hover { color: var(--text-primary); }
   `}</style>
 
-                      {selectedIndicator &&
-                        selectedIndicator.map((ind) => {
-                          const { id, type } = ind;
-                          const value = liveIndicatorData[id];
-                          return (
-                            <div
-                              key={id}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                gap: 12,
-                                background: "var(--bg-secondary)",
-                                border: "1px solid var(--border-color)",
-                                color: "var(--text-primary)",
-                                borderRadius: 6,
-                                padding: "0 10px",
-                                height: 32,
-                                fontSize: 12,
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              {/* Label + value */}
-                              <span
-                                style={{
-                                  color: "var(--text-secondary)",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 6,
-                                }}
-                              >
-                                <span
+                          {selectedIndicator &&
+                            selectedIndicator.map((ind) => {
+                              const { id, type } = ind;
+                              const value = liveIndicatorData[id];
+                              return (
+                                <div
+                                  key={id}
                                   style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    gap: 12,
+                                    background: "var(--bg-secondary)",
+                                    border: "1px solid var(--border-color)",
                                     color: "var(--text-primary)",
-                                    fontWeight: 500,
+                                    borderRadius: 6,
+                                    padding: "0 10px",
+                                    height: 32,
+                                    fontSize: 12,
+                                    whiteSpace: "nowrap",
                                   }}
                                 >
-                                  {type}
-                                </span>
-                                {" : "}
-                                {(() => {
-                                  const cfg = {
-                                    ...(indicatorConfigDefault[type] || {}),
-                                    ...(indicatorConfigs?.[id] || {}),
-                                  };
-                                  const len = cfg.length ?? cfg.baseLen ?? "";
-                                  const src = cfg.source ?? "";
-                                  return `${len}${src ? " " + src : ""}`;
-                                })()}
-                                <span style={{ display: "flex", gap: 6 }}>
-                                  {renderValue(type, value)}
-                                </span>
-                              </span>
+                                  {/* Label + value */}
+                                  <span
+                                    style={{
+                                      color: "var(--text-secondary)",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 6,
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        color: "var(--text-primary)",
+                                        fontWeight: 500,
+                                      }}
+                                    >
+                                      {type}
+                                    </span>
+                                    {" : "}
+                                    {(() => {
+                                      const cfg = {
+                                        ...(indicatorConfigDefault[type] || {}),
+                                        ...(indicatorConfigs?.[id] || {}),
+                                      };
+                                      const len =
+                                        cfg.length ?? cfg.baseLen ?? "";
+                                      const src = cfg.source ?? "";
+                                      return `${len}${src ? " " + src : ""}`;
+                                    })()}
+                                    <span style={{ display: "flex", gap: 6 }}>
+                                      {renderValue(type, value)}
+                                    </span>
+                                  </span>
 
-                              {/* Action buttons */}
-                              <div
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 4,
-                                }}
-                              >
-                                <button
-                                  className="ind-btn"
-                                  title={
-                                    indicatorVisibility[id] === false
-                                      ? "Show Indicator"
-                                      : "Hide Indicator"
-                                  }
-                                  onClick={() => toggleIndicatorVisibility(id)}
-                                >
-                                  {indicatorVisibility[id] === false ? (
-                                    <IoEyeOffOutline size={15} />
-                                  ) : (
-                                    <IoEyeOutline size={15} />
+                                  {/* Action buttons */}
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 4,
+                                    }}
+                                  >
+                                    <button
+                                      className="ind-btn"
+                                      title={
+                                        indicatorVisibility[id] === false
+                                          ? "Show Indicator"
+                                          : "Hide Indicator"
+                                      }
+                                      onClick={() =>
+                                        toggleIndicatorVisibility(id)
+                                      }
+                                    >
+                                      {indicatorVisibility[id] === false ? (
+                                        <IoEyeOffOutline size={15} />
+                                      ) : (
+                                        <IoEyeOutline size={15} />
+                                      )}
+                                    </button>
+
+                                    <button
+                                      className="ind-btn"
+                                      title="Indicator Settings"
+                                      onClick={() => {
+                                        setActiveBarIndicator({ id, type });
+                                        setIndicatorProperty((prev) => !prev);
+                                      }}
+                                    >
+                                      <IoSettingsOutline size={15} />
+                                    </button>
+
+                                    <button
+                                      className="ind-btn"
+                                      title="Source Code"
+                                      onClick={() => {
+                                        setActiveSourceIndicator(type);
+                                        setShowSourcePanel(true);
+                                      }}
+                                    >
+                                      <FaCode size={15} />
+                                    </button>
+
+                                    <button
+                                      className="ind-btn"
+                                      title="Remove"
+                                      onClick={() => removeIndicator(id)}
+                                    >
+                                      <IoCloseSharp size={15} />
+                                    </button>
+                                  </div>
+
+                                  {showAlertForm && (
+                                    <IndicatorAlert
+                                      onClose={closeAlert}
+                                      value={value}
+                                      liveOhlcv={liveOhlcv}
+                                      symbol={selectedCurrency}
+                                    />
                                   )}
-                                </button>
-
-                                <button
-                                  className="ind-btn"
-                                  title="Indicator Settings"
-                                  onClick={() => {
-                                    setActiveBarIndicator({ id, type });
-                                    setIndicatorProperty((prev) => !prev);
-                                  }}
-                                >
-                                  <IoSettingsOutline size={15} />
-                                </button>
-
-                                <button
-                                  className="ind-btn"
-                                  title="Source Code"
-                                  onClick={() => {
-                                    setActiveSourceIndicator(type);
-                                    setShowSourcePanel(true);
-                                  }}
-                                >
-                                  <FaCode size={15} />
-                                </button>
-
-                                <button
-                                  className="ind-btn"
-                                  title="Remove"
-                                  onClick={() => removeIndicator(id)}
-                                >
-                                  <IoCloseSharp size={15} />
-                                </button>
-                              </div>
-
-                              {showAlertForm && (
-                                <IndicatorAlert
-                                  onClose={closeAlert}
-                                  value={value}
-                                  liveOhlcv={liveOhlcv}
-                                  symbol={selectedCurrency}
-                                />
-                              )}
-                            </div>
-                          );
-                        })}
-                    </div>
-                  )}
-                  {/* {selectedIndicator.map((indicator, index) => {
+                                </div>
+                              );
+                            })}
+                        </div>
+                      )}
+                      {/* {selectedIndicator.map((indicator, index) => {
                 const value = liveIndicatorData[indicator];
                 const paneIndex = paneIndexRef.current[indicator];
                 if (paneIndex === undefined || paneIndex === 0) return null;
@@ -2075,27 +2270,27 @@ def plot_markers(markers):
                   />
                 );
               })} */}
-                </div>
+                    </div>
 
-                {/* Indicator Panes */}
-                <div
-                  ref={paneContainerRef}
-                  style={{
-                    position: "relative",
-                    width: "100%",
-                    height: hasPaneIndicators
-                      ? getIndicatorChartProperties().height
-                      : 0,
-                    display: hasPaneIndicators ? "block" : "none",
-                  }}
-                ></div>
+                    {/* Indicator Panes */}
+                    <div
+                      ref={paneContainerRef}
+                      style={{
+                        position: "relative",
+                        width: "100%",
+                        height: hasPaneIndicators
+                          ? getIndicatorChartProperties().height
+                          : 0,
+                        display: hasPaneIndicators ? "block" : "none",
+                      }}
+                    ></div>
 
-                {/* Render Indicators */}
-                <React.Fragment>{renderIndicators()}</React.Fragment>
+                    {/* Render Indicators */}
+                    <React.Fragment>{renderIndicators()}</React.Fragment>
 
-                {/* ZOOM OVERLAY */}
-                <div className="chart-zoom-overlay">
-                  <style>{`
+                    {/* ZOOM OVERLAY */}
+                    <div className="chart-zoom-overlay">
+                      <style>{`
                     .chart-and-panes-wrapper .chart-zoom-overlay {
                        opacity: 0;
                        visibility: hidden;
@@ -2146,42 +2341,54 @@ def plot_markers(markers):
                       background: var(--border-color);
                     }
                   `}</style>
-                  <button onClick={zoomOut} title="Zoom out" className="zoom-btn">
-                    <LuCircleMinus size={18} />
-                  </button>
-                  <div className="zoom-divider" />
-                  <button onClick={resetZoom} title="Reset zoom" className="zoom-btn">
-                    <RiResetRightLine size={18} />
-                  </button>
-                  <div className="zoom-divider" />
-                  <button onClick={zoomIn} title="Zoom in" className="zoom-btn">
-                    <LuCirclePlus size={18} />
-                  </button>
-                </div>
-
+                      <button
+                        onClick={zoomOut}
+                        title="Zoom out"
+                        className="zoom-btn"
+                      >
+                        <LuCircleMinus size={18} />
+                      </button>
+                      <div className="zoom-divider" />
+                      <button
+                        onClick={resetZoom}
+                        title="Reset zoom"
+                        className="zoom-btn"
+                      >
+                        <RiResetRightLine size={18} />
+                      </button>
+                      <div className="zoom-divider" />
+                      <button
+                        onClick={zoomIn}
+                        title="Zoom in"
+                        className="zoom-btn"
+                      >
+                        <LuCirclePlus size={18} />
+                      </button>
+                    </div>
                   </div>
-                  
+
                   {/* CODE EDITOR SIDE PANEL */}
                   {isCodeEditorOpen && (
-                    <CodeEditorPanel 
-                      onClose={() => setIsCodeEditorOpen(false)} 
-                      onDeploy={handleDeployCode} 
+                    <CodeEditorPanel
+                      onClose={() => setIsCodeEditorOpen(false)}
+                      onDeploy={handleDeployCode}
                       onClear={handleClearCode}
                       onEdit={() => setIsDeployed(false)}
-                      editorCode={editorCode} 
-                      setEditorCode={setEditorCode} 
+                      editorCode={editorCode}
+                      setEditorCode={setEditorCode}
                       isDeployed={isDeployed}
                     />
                   )}
-
-                </div>  
+                </div>
               </div>
 
               <div
                 style={{
                   flex: 1,
                   minWidth: 0,
-                  borderLeft: isWatchlistOpen ? "1px solid var(--border-color)" : "none",
+                  borderLeft: isWatchlistOpen
+                    ? "1px solid var(--border-color)"
+                    : "none",
                   borderRight: "1px solid var(--border-color)",
                   display: activeTab === "Overview" ? "flex" : "none",
                   flexDirection: "column",
@@ -2198,7 +2405,9 @@ def plot_markers(markers):
                 style={{
                   flex: 1,
                   minWidth: 0,
-                  borderLeft: isWatchlistOpen ? "1px solid var(--border-color)" : "none",
+                  borderLeft: isWatchlistOpen
+                    ? "1px solid var(--border-color)"
+                    : "none",
                   borderRight: "1px solid var(--border-color)",
                   display: activeTab === "Option Chain" ? "flex" : "none",
                   flexDirection: "column",
@@ -2221,7 +2430,9 @@ def plot_markers(markers):
                 style={{
                   flex: 1,
                   minWidth: 0,
-                  borderLeft: isWatchlistOpen ? "1px solid var(--border-color)" : "none",
+                  borderLeft: isWatchlistOpen
+                    ? "1px solid var(--border-color)"
+                    : "none",
                   borderRight: "1px solid var(--border-color)",
                   display: activeTab === "OI Analytics" ? "flex" : "none",
                   flexDirection: "column",
@@ -2243,7 +2454,8 @@ def plot_markers(markers):
               <RightSidebar
                 isWatchlistOpen={activeTab !== "Alerts" && isWatchlistOpen}
                 toggleWatchlist={() => {
-                  const willOpen = activeTab === "Alerts" ? true : !isWatchlistOpen;
+                  const willOpen =
+                    activeTab === "Alerts" ? true : !isWatchlistOpen;
                   if (activeTab === "Alerts") setActiveTab("Chart");
                   setIsWatchlistOpen(willOpen);
                   if (willOpen) setIsDetailsOpen(false); // close others

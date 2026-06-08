@@ -358,6 +358,32 @@ export let indicatorConfigDefault = {
     superSmootherPoles: 2,
     displayMode: "FULL_DISPLAY",
   },
+  MA_RIBBON: {
+  ma1: {
+    enabled: true,
+    type: "EMA",
+    source: "close",
+    length: 20,
+  },
+  ma2: {
+    enabled: true,
+    type: "SMA",
+    source: "hl2",
+    length: 50,
+  },
+  ma3: {
+    enabled: true,
+    type: "WMA",
+    source: "close",
+    length: 100,
+  },
+  ma4: {
+    enabled: true,
+    type: "VWMA",
+    source: "close",
+    length: 200,
+  },
+},
 };
 
 export let indicatorStyleDefault = {
@@ -1599,4 +1625,34 @@ export let indicatorStyleDefault = {
       bottomFillColor1: "rgba(33,150,243,0.03)",
     },
   },
+  MA_RIBBON: {
+  ma1: {
+    color: "rgba(255,255,255,1)",
+    width: 1,
+    lineStyle: 0,
+    opacity: 100,
+    visible: true,
+  },
+  ma2: {
+    color: "rgba(255,202,28,1)",
+    width: 1,
+    lineStyle: 0,
+    opacity: 100,
+    visible: true,
+  },
+  ma3: {
+    color: "rgba(38,166,154,1)",
+    width: 1,
+    lineStyle: 0,
+    opacity: 100,
+    visible: true,
+  },
+  ma4: {
+    color: "rgba(239,83,80,1)",
+    width: 1,
+    lineStyle: 0,
+    opacity: 100,
+    visible: true,
+  },
+},
 };

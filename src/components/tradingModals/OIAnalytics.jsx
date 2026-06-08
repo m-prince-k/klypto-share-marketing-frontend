@@ -27,51 +27,55 @@ import apiService from "../../services/apiServices";
 import axios from "axios";
 
 const customDataLabelsPlugin = {
-  id: 'customDataLabels',
+  id: "customDataLabels",
   afterDatasetsDraw(chart) {
     const { ctx } = chart;
-    ctx.font = 'bold 11px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    
+    ctx.font = "bold 11px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+
     chart.data.datasets.forEach((dataset, i) => {
-      if (dataset.type === 'line') return;
-      
+      if (dataset.type === "line") return;
+
       const meta = chart.getDatasetMeta(i);
       meta.data.forEach((bar, index) => {
         const dataVal = dataset.data[index];
         if (dataVal > 0) {
           ctx.fillStyle = dataset.backgroundColor;
-          const formatted = (dataVal / 100000).toFixed(1) + 'L';
+          const formatted = (dataVal / 100000).toFixed(1) + "L";
           ctx.fillText(formatted, bar.x, bar.y - 5);
         }
       });
     });
-  }
+  },
 };
 
 const spotPriceLinePlugin = {
-  id: 'spotPriceLine',
+  id: "spotPriceLine",
   afterDraw(chart, args, pluginOptions) {
     const spotPrice = pluginOptions.spotPrice;
     if (!spotPrice) return;
-    
-    const { ctx, chartArea: { top, bottom }, scales: { x } } = chart;
+
+    const {
+      ctx,
+      chartArea: { top, bottom },
+      scales: { x },
+    } = chart;
     const labels = chart.data.labels;
     let closestIndex = -1;
     let minDiff = Infinity;
-    
+
     labels.forEach((label, i) => {
       const parsedLabel = parseFloat(label);
-      if(isNaN(parsedLabel)) return;
-      
+      if (isNaN(parsedLabel)) return;
+
       const diff = Math.abs(parsedLabel - spotPrice);
       if (diff < minDiff) {
         minDiff = diff;
         closestIndex = i;
       }
     });
-    
+
     if (closestIndex !== -1) {
       const xCoord = x.getPixelForValue(closestIndex);
       ctx.save();
@@ -80,20 +84,24 @@ const spotPriceLinePlugin = {
       ctx.moveTo(xCoord, top);
       ctx.lineTo(xCoord, bottom);
       ctx.lineWidth = 1.5;
-      ctx.strokeStyle = '#eab308';
+      ctx.strokeStyle = "#eab308";
       ctx.stroke();
       ctx.restore();
     }
-  }
+  },
 };
 
 const OIAnalytics = ({ selectedCurrency }) => {
-  const [theme, setTheme] = useState(document.documentElement.getAttribute("data-theme") || "dark");
+  const [theme, setTheme] = useState(
+    document.documentElement.getAttribute("data-theme") || "dark",
+  );
   useEffect(() => {
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((m) => {
         if (m.attributeName === "data-theme") {
-          setTheme(document.documentElement.getAttribute("data-theme") || "dark");
+          setTheme(
+            document.documentElement.getAttribute("data-theme") || "dark",
+          );
         }
       });
     });
@@ -103,13 +111,13 @@ const OIAnalytics = ({ selectedCurrency }) => {
 
   const gridColor = theme === "light" ? "#e2e8f0" : "#2e3347";
 
-  const [data, setData] = useState([
-  ]);
+  const [data, setData] = useState([]);
   const [metrics, setMetrics] = useState({});
 
   let currentSymbol = selectedCurrency?.name || selectedCurrency;
   if (currentSymbol) {
-    currentSymbol = typeof currentSymbol === "string" ? currentSymbol : currentSymbol.name;
+    currentSymbol =
+      typeof currentSymbol === "string" ? currentSymbol : currentSymbol.name;
   } else {
     currentSymbol = "NIFTY";
   }
@@ -421,7 +429,13 @@ const OIAnalytics = ({ selectedCurrency }) => {
             borderRadius: "6px",
           }}
         >
-          <p style={{ margin: "0 0 8px 0", fontWeight: 600, color: "var(--text-primary)" }}>
+          <p
+            style={{
+              margin: "0 0 8px 0",
+              fontWeight: 600,
+              color: "var(--text-primary)",
+            }}
+          >
             Strike: {label}
           </p>
           {payload.map((entry, index) => (
@@ -463,7 +477,7 @@ const OIAnalytics = ({ selectedCurrency }) => {
             {metrics?.spotPrice || "-"}
           </span>
         </div>
-       
+
         <div style={styles.metricCard}>
           <span style={styles.metricLabel}>PCR (OI)</span>
           <span style={{ ...styles.metricValue, color: "#ef4444" }}>
@@ -504,8 +518,9 @@ const OIAnalytics = ({ selectedCurrency }) => {
           <div style={styles.dominantBadge("PUT")}>PUTS DOMINANT</div>
         </div>
 
-
-        <div style={{ width: "100%", height: "400px", background: "transparent" }}>
+        <div
+          style={{ width: "100%", height: "400px", background: "transparent" }}
+        >
           <div style={{ width: "100%", height: "400px" }}>
             <Bar
               data={{
@@ -554,12 +569,16 @@ const OIAnalytics = ({ selectedCurrency }) => {
                   tooltip: {
                     callbacks: {
                       label: (ctx) =>
-                        `${ctx.dataset.label}: ${ctx.dataset.type === 'line' ? ctx.parsed.y : ctx.parsed.y.toLocaleString()}`,
+                        `${ctx.dataset.label}: ${ctx.dataset.type === "line" ? ctx.parsed.y : ctx.parsed.y.toLocaleString()}`,
                     },
                   },
                   spotPriceLine: {
-                    spotPrice: metrics?.spotPrice ? parseFloat(metrics.spotPrice.toString().replace(/,/g, '')) : null
-                  }
+                    spotPrice: metrics?.spotPrice
+                      ? parseFloat(
+                          metrics.spotPrice.toString().replace(/,/g, ""),
+                        )
+                      : null,
+                  },
                 },
                 scales: {
                   x: {
@@ -574,11 +593,11 @@ const OIAnalytics = ({ selectedCurrency }) => {
                   y: {
                     type: "linear",
                     position: "left",
-                    ticks: { 
+                    ticks: {
                       color: "var(--text-primary)",
-                      callback: function(value) {
-                        return (value / 100000).toFixed(0) + 'L';
-                      }
+                      callback: function (value) {
+                        return (value / 100000).toFixed(0) + "L";
+                      },
                     },
                     grid: { color: gridColor },
                     title: {
@@ -613,7 +632,13 @@ const OIAnalytics = ({ selectedCurrency }) => {
           >
             HIGHEST OI (CALL)
           </span>
-          <span style={{ fontSize: "1.2rem", fontWeight: 700, color: "var(--text-primary)" }}>
+          <span
+            style={{
+              fontSize: "1.2rem",
+              fontWeight: 700,
+              color: "var(--text-primary)",
+            }}
+          >
             {metrics?.highestCallOI?.strike || "-"}
           </span>
           <span style={{ color: "#ef4444", fontWeight: 600 }}>
@@ -654,7 +679,13 @@ const OIAnalytics = ({ selectedCurrency }) => {
         </div> */}
       </div>
 
-      <div style={{ marginTop: "20px", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+      <div
+        style={{
+          marginTop: "20px",
+          fontSize: "0.75rem",
+          color: "var(--text-secondary)",
+        }}
+      >
         Note: OI = Open Interest | PCR = Put Call Ratio
       </div>
     </div>
