@@ -9,13 +9,28 @@ import OrderBook from "../../components/dashboard/OrderBook";
 import { useLocation } from "react-router-dom";
 
 const Dashboard = () => {
-  const location = useLocation();
+  // const location = useLocation();
 
-  const passedStock = location.state?.stock || null;
-  const passedAction = location.state?.action || null;
-  const passedExpiry = location.state?.expiry || null;
+  // const passedStock = location.state?.stock || null;
+  // const passedAction = location.state?.action || null;
+  // const passedExpiry = location.state?.expiry || null;
+  // const passedPrice  = location.state?.price  || null;
+
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const tradeKey = searchParams.get("tradeKey");
+
+  const passedState = tradeKey
+    ? JSON.parse(sessionStorage.getItem(tradeKey) || "{}")
+    : location.state || {};
+
+  const passedStock = passedState.stock || null;
+  const passedAction = passedState.action || null;
+  const passedExpiry = passedState.expiry || null;
+  const passedPrice = passedState.price || null;
   const [stock, setStock] = useState(passedStock || "");
   const [expiry, setExpiry] = useState(passedExpiry || "");
+  const [price, setPrice] = useState(passedPrice || null);
   const [strategy, setStrategy] = useState("Nearest ATM");
   const [preference, setPreference] = useState("ATM");
   const [product, setProduct] = useState("CARRYFORWARD");
@@ -45,6 +60,8 @@ const Dashboard = () => {
     setStock,
     expiry,
     setExpiry,
+    price,
+    setPrice,
     strategy,
     setStrategy,
     preference,
@@ -68,21 +85,20 @@ const Dashboard = () => {
       <Navbar />
       <div className="dashboard-container">
         {/* <Header /> */}
-      <Stepper
-        currentStep={currentStep}
-        filledSteps={{
-          step1: !!(stock && expiry),
-          step2: !!(strategy && preference),
-          step3: !!(product && orderType),
-          step4: !!action,
-        }}
-      />
-      {/* Order Panel */}
-      <div className="main-grid">
-        <OrderPanel {...orderState} />
-        <SidePanel stock={stock} expiry={expiry} />
-      </div>
-
+        <Stepper
+          currentStep={currentStep}
+          filledSteps={{
+            step1: !!(stock && expiry),
+            step2: !!(strategy && preference),
+            step3: !!(product && orderType),
+            step4: !!action,
+          }}
+        />
+        {/* Order Panel */}
+        <div className="main-grid">
+          <OrderPanel {...orderState} />
+          <SidePanel stock={stock} expiry={expiry} />
+        </div>
       </div>
       <style>{`
         .x-small { font-size: 0.65rem; }

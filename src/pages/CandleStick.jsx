@@ -1659,7 +1659,10 @@ def plot_markers(markers):
                     alertResult={matchedCoins}
                     addAlert={addAlert}
                     onOpenScanner={() => {
+                      // Open details panel, close watchlist
                       setIsDetailsOpen(true);
+                      setIsWatchlistOpen(false);
+                      if (activeTab === "Alerts") setActiveTab("Chart");
                       setOpenScannerTrigger((prev) => prev + 1);
                     }}
                   />
@@ -2203,8 +2206,14 @@ def plot_markers(markers):
                 }}
               >
                 <OptionChain
-                  key={selectedCurrency?.name}
-                  selectedCurrency={selectedCurrency}
+                  onSymbolChange={useCallback((sym) => {
+                    setSelectedCurrency((prev) => {
+                      if (prev?.name !== sym) {
+                        return { ...prev, name: sym, symbol: sym };
+                      }
+                      return prev;
+                    });
+                  }, [])}
                 />
               </div>
 
@@ -2234,19 +2243,19 @@ def plot_markers(markers):
               <RightSidebar
                 isWatchlistOpen={activeTab !== "Alerts" && isWatchlistOpen}
                 toggleWatchlist={() => {
-                  if (activeTab === "Alerts") {
-                    setActiveTab("Chart");
-                    setIsWatchlistOpen(true);
-                  } else {
-                    setIsWatchlistOpen(!isWatchlistOpen);
-                  }
-                  setIsDetailsOpen(false);
+                  const willOpen = activeTab === "Alerts" ? true : !isWatchlistOpen;
+                  if (activeTab === "Alerts") setActiveTab("Chart");
+                  setIsWatchlistOpen(willOpen);
+                  if (willOpen) setIsDetailsOpen(false); // close others
                 }}
                 isDetailsOpen={isDetailsOpen}
                 toggleDetails={() => {
-                  setIsDetailsOpen(!isDetailsOpen);
-                  setIsWatchlistOpen(false);
-                  if (activeTab === "Alerts") setActiveTab("Chart");
+                  const willOpen = !isDetailsOpen;
+                  setIsDetailsOpen(willOpen);
+                  if (willOpen) {
+                    setIsWatchlistOpen(false); // close others
+                    if (activeTab === "Alerts") setActiveTab("Chart");
+                  }
                 }}
                 isAlertsOpen={activeTab === "Alerts"}
                 toggleAlerts={() => {
@@ -2254,6 +2263,9 @@ def plot_markers(markers):
                     setActiveTab("Chart");
                   } else {
                     setActiveTab("Alerts");
+                    // Close left panels when alerts opens
+                    setIsWatchlistOpen(false);
+                    setIsDetailsOpen(false);
                   }
                 }}
               />

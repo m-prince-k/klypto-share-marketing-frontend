@@ -5,12 +5,17 @@ import { Doughnut } from "react-chartjs-2";
 ChartJS.register(ArcElement, Tooltip, Legend);
 
 const TradeOutcome = ({ data }) => {
+  const wins   = data?.winRate?.wins   ?? data?.totalWins   ?? 0;
+  const losses = data?.winRate?.losses ?? data?.totalLosses ?? 0;
+  const total  = data?.totalTrades?.value ?? data?.totalTrades ?? (wins + losses);
+  const winPct = data?.winRate?.value ?? data?.winRatePct ?? (total ? (wins / total * 100) : 0);
+
   const chartData = {
     labels: ["Winning Trades", "Losing Trades"],
     datasets: [
       {
-        data: [data.winRate.wins, data.winRate.losses],
-        backgroundColor: ["var(--success-color)", "var(--danger-color)"],
+        data: [wins, losses],
+        backgroundColor: ["#089981", "#f23645"],
         borderWidth: 0,
         cutout: "75%",
       },
@@ -21,14 +26,12 @@ const TradeOutcome = ({ data }) => {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: {
-        display: false,
-      },
+      legend: { display: false },
       tooltip: {
-        backgroundColor: "var(--bg-secondary)",
-        titleColor: "var(--text-primary)",
-        bodyColor: "var(--text-primary)",
-        borderColor: "var(--border-color)",
+        backgroundColor: "#1a1d27",
+        titleColor: "#d1d4dc",
+        bodyColor: "#d1d4dc",
+        borderColor: "#2e3347",
         borderWidth: 1,
       },
     },
@@ -43,23 +46,23 @@ const TradeOutcome = ({ data }) => {
         <div className="to-chart-wrapper">
           <Doughnut data={chartData} options={options} />
           <div className="to-center-text">
-            <span className="to-center-val">{data.totalTrades.value}</span>
+            <span className="to-center-val">{total}</span>
             <span className="to-center-lbl">Total Trades</span>
           </div>
         </div>
         <div className="to-legend">
           <div className="to-legend-item">
-            <span className="to-legend-color" style={{ background: "var(--success-color)" }}></span>
+            <span className="to-legend-color" style={{ background: "#089981" }}></span>
             <div className="to-legend-text">
               <span className="to-lbl">Winning Trades</span>
-              <span className="to-val">{data.winRate.wins} ({data.winRate.value}%)</span>
+              <span className="to-val">{wins} ({winPct.toFixed(2)}%)</span>
             </div>
           </div>
           <div className="to-legend-item">
-            <span className="to-legend-color" style={{ background: "var(--danger-color)" }}></span>
+            <span className="to-legend-color" style={{ background: "#f23645" }}></span>
             <div className="to-legend-text">
               <span className="to-lbl">Losing Trades</span>
-              <span className="to-val">{data.winRate.losses} ({(100 - data.winRate.value).toFixed(2)}%)</span>
+              <span className="to-val">{losses} ({(100 - winPct).toFixed(2)}%)</span>
             </div>
           </div>
         </div>

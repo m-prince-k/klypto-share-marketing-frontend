@@ -8,34 +8,25 @@ const DrawdownCurve = ({ drawdownData }) => {
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    const chartOptions = {
+    const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: 'solid', color: 'transparent' },
         textColor: '#787b86',
       },
       grid: {
-        vertLines: { color: 'rgba(120, 123, 134, 0.2)' },
-        horzLines: { color: 'rgba(120, 123, 134, 0.2)' },
+        vertLines: { color: 'rgba(120, 123, 134, 0.15)' },
+        horzLines: { color: 'rgba(120, 123, 134, 0.15)' },
       },
-      timeScale: {
-        borderColor: 'rgba(120, 123, 134, 0.2)',
-        timeVisible: true,
-      },
-      rightPriceScale: {
-        borderColor: 'rgba(120, 123, 134, 0.2)',
-      },
-      crosshair: {
-        mode: 1,
-      },
-    };
-
-    const chart = createChart(chartContainerRef.current, chartOptions);
+      timeScale: { borderColor: '#2e3347', timeVisible: true },
+      rightPriceScale: { borderColor: '#2e3347' },
+      crosshair: { mode: 1 },
+    });
     chartRef.current = chart;
 
-    const areaSeries = chart.addSeries(AreaSeries,{
+    const areaSeries = chart.addSeries(AreaSeries, {
       topColor: 'rgba(242, 54, 69, 0.4)',
-      bottomColor: 'rgba(242, 54, 69, 0)',
-      lineColor: 'var(--danger-color)',
+      bottomColor: 'rgba(242, 54, 69, 0.02)',
+      lineColor: '#f23645',
       lineWidth: 2,
     });
     areaSeries.setData(drawdownData);

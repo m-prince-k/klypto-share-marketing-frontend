@@ -107,18 +107,20 @@ const OIAnalytics = ({ selectedCurrency }) => {
   ]);
   const [metrics, setMetrics] = useState({});
 
+  let currentSymbol = selectedCurrency?.name || selectedCurrency;
+  if (currentSymbol) {
+    currentSymbol = typeof currentSymbol === "string" ? currentSymbol : currentSymbol.name;
+  } else {
+    currentSymbol = "NIFTY";
+  }
+
   useEffect(() => {
     console.log(
       "OI Analytics Component Mounted. Listening for 'option-chain-data' events on socket:",
       socket.id,
     );
 
-    let currentSymbol = selectedCurrency?.name;
     if (currentSymbol) {
-      // Clean symbol (e.g., in case it's an object or complex string)
-      currentSymbol =
-        typeof currentSymbol === "string" ? currentSymbol : currentSymbol.name;
-
       const fetchAndSubscribe = async () => {
         try {
           const response = await apiService.get("options/chain", {
@@ -151,12 +153,13 @@ const OIAnalytics = ({ selectedCurrency }) => {
         try {
           // Using direct axios call for port 3000
           const res = await axios.get(
-            "http://192.168.1.11:3000/api/historical-data",
+            "http://192.168.1.6:3000/api/historical-data",
             {
               params: { symbol: currentSymbol },
             },
           );
           const responseData = res.data;
+          console.log("Historical Data:", responseData);
 
           if (
             responseData &&
@@ -249,12 +252,12 @@ const OIAnalytics = ({ selectedCurrency }) => {
       console.log("Total Records:", response.totalRecords);
       console.log("Live Option Chain:", response);
 
-      if (response && response.data) {
+      if (response && response.data && response.data.length > 0) {
         // Map the backend data to ensure Recharts can read the keys properly
         let formattedData = [];
 
         // Check if the live data comes as flat array (like historical) or grouped
-        if (response.data.length > 0 && response.data[0].option_type) {
+        if (response.data[0].option_type) {
           const grouped = {};
           response.data.forEach((item) => {
             const strike = Number(item.strike_price || item.strike);
@@ -445,7 +448,7 @@ const OIAnalytics = ({ selectedCurrency }) => {
       <div style={styles.headerRow}>
         <div style={styles.title}>Option Chain - Bar Graph View</div>
         <div style={styles.rightInfo}>
-          <span style={{ fontWeight: 600 }}>NIFTY 50</span>
+          <span style={{ fontWeight: 600 }}>{currentSymbol}</span>
           <span style={{ color: "#ef4444", fontWeight: 600 }}>
             {metrics?.spotPrice || "-"}
           </span>

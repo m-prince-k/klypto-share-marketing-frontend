@@ -8,37 +8,24 @@ const ProfitByTime = ({ data }) => {
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    const chartOptions = {
+    const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: 'solid', color: 'transparent' },
-        textColor: 'var(--text-primary)',
+        textColor: '#787b86',
       },
       grid: {
         vertLines: { visible: false },
-        horzLines: { color: 'rgba(42, 46, 57, 0.5)' },
+        horzLines: { color: 'rgba(120, 123, 134, 0.15)' },
       },
-      timeScale: {
-        borderColor: 'var(--border-color)',
-        timeVisible: false,
-      },
-      rightPriceScale: {
-        borderColor: 'var(--border-color)',
-      },
-      crosshair: {
-        mode: 1,
-      },
-    };
-
-    const chart = createChart(chartContainerRef.current, chartOptions);
+      timeScale: { borderColor: '#2e3347', timeVisible: false },
+      rightPriceScale: { borderColor: '#2e3347' },
+      crosshair: { mode: 1 },
+    });
     chartRef.current = chart;
 
-    const histogramSeries = chart.addSeries(HistogramSeries,{
-      priceFormat: {
-        type: 'volume',
-      },
-      priceScaleId: '', // set as an overlay by default
+    const histogramSeries = chart.addSeries(HistogramSeries, {
+      priceFormat: { type: 'volume' },
     });
-    
     histogramSeries.setData(data);
 
     chart.timeScale().fitContent();

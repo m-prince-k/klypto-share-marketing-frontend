@@ -3,10 +3,10 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { io } from "socket.io-client";
 
-const SOCKET_URL = "http://192.168.1.11:3000";
-const METADATA_URL = "http://192.168.1.11:3000/api/historical-metadata";
+const SOCKET_URL = "http://192.168.1.6:3000";
+const METADATA_URL = "http://192.168.1.6:3000/api/historical-metadata";
 
-const OptionChain = () => {
+const OptionChain = ({ onSymbolChange }) => {
   const navigate = useNavigate();
 
   // ── Dropdown state ──
@@ -79,7 +79,12 @@ const OptionChain = () => {
     setStrikes([]);
     setSpotPrice(null);
     setAtmStrike(null);
-  }, [selectedSymbol, metadata]);
+
+    // Notify parent of symbol change
+    if (onSymbolChange) {
+      onSymbolChange(selectedSymbol);
+    }
+  }, [selectedSymbol, metadata, onSymbolChange]);
 
   // Socket setup (one persistent connection)
   useEffect(() => {
@@ -216,16 +221,28 @@ const OptionChain = () => {
     if (val == null || val === "") return "—";
     const n = Number(val);
     if (isNaN(n)) return val;
-    if (n >= 10000000) return (n / 10000000).toFixed(2) + " Cr";
-    if (n >= 100000) return (n / 100000).toFixed(2) + " L";
-    if (n >= 1000) return (n / 1000).toFixed(1) + "K";
-    return n.toString();
+    if (n >= 10000000) return (n / 10000000).toFixed(2) + "Cr";
+    if (n >= 100000) return (n / 100000).toFixed(2) + "L";
+    if (n >= 1000) return (n / 1000).toFixed(2) + "K";
+    return n.toFixed(2);
   };
 
   const fmtPct = (val) => {
     if (val == null || val === "") return null;
     const n = Number(val);
     return isNaN(n) ? null : n;
+  };
+
+  const fmtGreeks = (val) => {
+    if (val == null || val === "") return "—";
+    const n = Number(val);
+    return isNaN(n) ? val : n.toFixed(4);
+  };
+
+  const fmtIV = (val) => {
+    if (val == null || val === "") return "—";
+    const n = Number(val);
+    return isNaN(n) ? val : n.toFixed(2);
   };
 
   const normalizeSide = (side) => {
@@ -237,6 +254,11 @@ const OptionChain = () => {
       oiChg: side.oiChg ?? side.changeInOI ?? side.oiChange ?? side.oi_change ?? null,
       oiChgPct: side.oiChgPct ?? side.pChangeinOI ?? side.oiChangePct ?? null,
       volume: side.volume ?? side.totalTradedVolume ?? side.vol ?? null,
+      iv: side.iv ?? side.impliedVolatility ?? null,
+      delta: side.delta ?? null,
+      gamma: side.gamma ?? null,
+      theta: side.theta ?? null,
+      vega: side.vega ?? null,
     };
   };
 
@@ -270,17 +292,33 @@ const OptionChain = () => {
     );
   };
 
+  // const handleTrade = (strike, optionType, action, price) => {
+  //   const stockName = `${selectedSymbol} ${activeExpiry} ${strike} ${optionType}`;
+  //   navigate("/dashboard", {
+  //     state: {
+  //       stock: stockName,
+  //       expiry: activeExpiry,
+  //       action: action,
+  //       price: price,
+  //     },
+  //   });
+  // };
+
   const handleTrade = (strike, optionType, action, price) => {
-    const stockName = `${selectedSymbol} ${activeExpiry} ${strike} ${optionType}`;
-    navigate("/dashboard", {
-      state: {
-        stock: stockName,
-        expiry: activeExpiry,
-        action: action,
-        price: price,
-      },
-    });
+  const stockName = `${selectedSymbol} ${activeExpiry} ${strike} ${optionType}`;
+  const state = {
+    stock: stockName,
+    expiry: activeExpiry,
+    action: action,
+    price: price,
   };
+
+  // Encode state in sessionStorage so the new tab can read it
+  const key = `trade_${Date.now()}`;
+  sessionStorage.setItem(key, JSON.stringify(state));
+
+  window.open(`/dashboard?tradeKey=${key}`, "_blank");
+};
 
   const filteredContracts = liveContractsList.filter((c) => {
     const search = (symbolSearch || "").toLowerCase();
@@ -301,7 +339,7 @@ const OptionChain = () => {
       <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
 
         {/* Symbol Dropdown */}
-        <div ref={dropdownRef} style={{ position: "relative", minWidth: 260 }}>
+        <div ref={dropdownRef} style={{ position: "relative", minWidth: 300 }}>
           <div
             onClick={() => {
               if (!dropdownOpen) {
@@ -333,9 +371,14 @@ const OptionChain = () => {
                 <span style={{ fontSize: 10, background: "var(--border-color)", color: "var(--text-primary)", padding: "2px 6px", borderRadius: 4 }}>{selectedContract.exchange ?? "NSE FO"}</span>
                 <span style={{ color: "#363a45" }}>|</span>
                 <span style={{ color: "var(--text-primary)", fontWeight: 500 }}>{selectedContract.expiry} {selectedContract.strike} {selectedContract.option_type}</span>
-                <span style={{ color: (selectedContract.change_percentage ?? 0) >= 0 ? "var(--success-color)" : "var(--danger-color)", fontWeight: 600 }}>
-                  {selectedContract.ltp ?? 0} {(selectedContract.change_percentage ?? 0) >= 0 ? "▲" : "▼"}
+                <span style={{ color: (selectedContract?.change_percentage ?? 0) >= 0 ? "var(--success-color)" : "var(--danger-color)", fontWeight: 600 }}>
+                  {selectedContract?.ltp ?? 0}{" "}
+                  {(selectedContract?.change_percentage ?? 0) >= 0 ? "▲" : "▼"}{" "}
+                  <span style={{ fontSize: 11, fontWeight: 500 }}>
+                    {(selectedContract?.change_percentage ?? 0) >= 0 ? "+" : ""}{Number(selectedContract?.change_percentage ?? 0).toFixed(2)}%
+                  </span>
                 </span>
+               
               </div>
             ) : (
               <span>{selectedSymbol || "Select Symbol"}</span>
@@ -389,6 +432,7 @@ const OptionChain = () => {
                   const exchange = contract.exchange ?? "NFO";
                   const expDate = contract.expiry ?? contract.expiry_date;
                   const strikePrice = contract.strike ?? contract.strike_price;
+                 
                   
                   return (
                     <div
@@ -474,15 +518,20 @@ const OptionChain = () => {
       </div>
 
       {/* ── Table ── */}
-      <div style={{ borderRadius: 8, overflow: "hidden", border: "1px solid var(--border-color)" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "center" }}>
+      <div style={{ borderRadius: 8, overflowX: "auto", overflowY: "hidden", border: "1px solid var(--border-color)" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "center", minWidth: 1000 }}>
           <thead>
             <tr style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border-color)" }}>
-              <th colSpan="4" style={{ padding: "12px", borderRight: "1px solid var(--border-color)", color: "var(--success-color)" }}>CALL</th>
+              <th colSpan="9" style={{ padding: "12px", borderRight: "1px solid var(--border-color)", color: "var(--success-color)" }}>CALL</th>
               <th style={{ padding: "12px", borderRight: "1px solid var(--border-color)", color: "var(--text-primary)" }}>Strike</th>
-              <th colSpan="4" style={{ padding: "12px", color: "var(--danger-color)" }}>PUT</th>
+              <th colSpan="9" style={{ padding: "12px", color: "var(--danger-color)" }}>PUT</th>
             </tr>
             <tr style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border-color)", color: "var(--text-secondary)", fontSize: 11 }}>
+              <th style={{ padding: "8px" }}>Vega</th>
+              <th style={{ padding: "8px" }}>Theta</th>
+              <th style={{ padding: "8px" }}>Gamma</th>
+              <th style={{ padding: "8px" }}>Delta</th>
+              <th style={{ padding: "8px" }}>IV</th>
               <th style={{ padding: "8px" }}>Volume</th>
               <th style={{ padding: "8px" }}>OI Chng</th>
               <th style={{ padding: "8px" }}>OI</th>
@@ -492,19 +541,24 @@ const OptionChain = () => {
               <th style={{ padding: "8px" }}>OI</th>
               <th style={{ padding: "8px" }}>OI Chng</th>
               <th style={{ padding: "8px" }}>Volume</th>
+              <th style={{ padding: "8px" }}>IV</th>
+              <th style={{ padding: "8px" }}>Delta</th>
+              <th style={{ padding: "8px" }}>Gamma</th>
+              <th style={{ padding: "8px" }}>Theta</th>
+              <th style={{ padding: "8px" }}>Vega</th>
             </tr>
           </thead>
           <tbody>
             {strikes.length === 0 ? (
               <tr>
-                <td colSpan={9} style={{ padding: 40, color: "var(--text-secondary)", fontSize: 13 }}>
+                <td colSpan={19} style={{ padding: 40, color: "var(--text-secondary)", fontSize: 13 }}>
                   {selectedSymbol ? `Waiting for option chain data for ${selectedSymbol}…` : "Select a symbol to view option chain"}
                 </td>
               </tr>
             ) : (
               strikes.map((row, i) => {
                 const strike = Number(row.strike);
-                const isATM = strike === Number(atmStrike);
+                const prevStrike = i > 0 ? Number(strikes[i-1].strike) : -Infinity;
                 const isCallItm = spot != null && strike < spot;
                 const isPutItm = spot != null && strike > spot;
                 let callBg = isCallItm ? "rgba(255,235,59,0.05)" : "transparent";
@@ -554,53 +608,78 @@ const OptionChain = () => {
                     style={{
                       padding: "10px", fontWeight: "bold",
                       borderRight: "1px solid var(--border-color)",
-                      background: isATM ? "#0e2a22" : "var(--bg-secondary)",
-                      color: isATM ? "var(--success-color)" : "var(--text-primary)",
+                      background: "var(--bg-secondary)",
+                      color: "var(--text-primary)",
                     }}
                   >
-                    {isATM && spot != null ? (
-                      <span style={{ background: "var(--success-color)", color: "#fff", padding: "2px 6px", borderRadius: 4, fontSize: 12 }}>
-                        {Number(spot).toFixed(2)}
-                      </span>
-                    ) : strike.toLocaleString("en-IN")}
+                    {strike.toLocaleString("en-IN")}
                   </td>
                 );
 
-                return (
-                  <tr
-                    key={`${strike}-${i}`}
-                    style={{
-                      borderBottom: "1px solid var(--border-color)",
-                      borderTop: isATM ? "2px solid var(--success-color)" : undefined,
-                    }}
-                  >
-                    {/* CALL SIDE */}
-                    <td {...ceProps} style={{ padding: "10px", background: callBg }}>{fmtOI(ce.volume)}</td>
-                    <td {...ceProps} style={{ padding: "10px", background: callBg }}>{renderOiChng(ce.oiChg, ce.oiChgPct)}</td>
-                    <td {...ceProps} style={{ padding: "10px", background: callBg, color: "var(--danger-color)" }}>{fmtOI(ce.oi)}</td>
-                    <td
-                      {...ceProps}
-                      style={{ padding: "10px", background: callBg, borderRight: "1px solid var(--border-color)", position: "relative" }}
-                    >
-                      {renderLtp(ce.ltp, ce.ltpChgPct)}
-                      {hoveredCell === `${strike}-CE` && <BsButtons optType="CE" ltp={ce.ltp} />}
-                    </td>
+                const showSpotLine = spot != null && spot > prevStrike && spot <= strike;
+                const showSpotLineAtEnd = i === strikes.length - 1 && spot != null && spot > strike;
+                const spotLineColor = spotChange >= 0 ? "var(--success-color)" : "var(--danger-color)";
+                const spotLineBg = spotChange >= 0 ? "rgba(8,153,129,0.1)" : "rgba(242,54,69,0.1)";
 
-                    {/* STRIKE */}
-                    {strikeCell}
-
-                    {/* PUT SIDE */}
-                    <td
-                      {...peProps}
-                      style={{ padding: "10px", background: putBg, position: "relative" }}
-                    >
-                      {renderLtp(pe.ltp, pe.ltpChgPct)}
-                      {hoveredCell === `${strike}-PE` && <BsButtons optType="PE" ltp={pe.ltp} />}
+                const renderSpotDivider = (keySuffix) => (
+                  <tr key={`spot-divider-${strike}-${keySuffix}`}>
+                    <td colSpan="19" style={{ padding: 0, position: "relative", height: "30px", verticalAlign: "middle" }}>
+                      <div style={{ position: "absolute", left: 0, right: 0, top: "50%", height: "2px", background: spotLineColor, zIndex: 1 }}></div>
+                      <div style={{ position: "relative", zIndex: 2, display: "inline-block", background: "var(--bg-primary)", color: spotLineColor, border: `1px solid ${spotLineColor}`, padding: "2px 10px", borderRadius: "6px", fontSize: 13, fontWeight: "bold" }}>
+                        <span style={{ background: spotLineBg, position: "absolute", inset: 0, borderRadius: "6px" }}></span>
+                        <span style={{ position: "relative", zIndex: 1 }}>{Number(spot).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                      </div>
                     </td>
-                    <td {...peProps} style={{ padding: "10px", background: putBg, color: "var(--success-color)" }}>{fmtOI(pe.oi)}</td>
-                    <td {...peProps} style={{ padding: "10px", background: putBg }}>{renderOiChng(pe.oiChg, pe.oiChgPct)}</td>
-                    <td {...peProps} style={{ padding: "10px", background: putBg }}>{fmtOI(pe.volume)}</td>
                   </tr>
+                );
+
+                return (
+                  <React.Fragment key={`${strike}-${i}`}>
+                    {showSpotLine && renderSpotDivider("before")}
+                    <tr
+                      style={{
+                        borderBottom: "1px solid var(--border-color)",
+                      }}
+                    >
+                      {/* CALL SIDE */}
+                      <td {...ceProps} style={{ padding: "10px", background: callBg }}>{fmtGreeks(ce.vega)}</td>
+                      <td {...ceProps} style={{ padding: "10px", background: callBg }}>{fmtGreeks(ce.theta)}</td>
+                      <td {...ceProps} style={{ padding: "10px", background: callBg }}>{fmtGreeks(ce.gamma)}</td>
+                      <td {...ceProps} style={{ padding: "10px", background: callBg }}>{fmtGreeks(ce.delta)}</td>
+                      <td {...ceProps} style={{ padding: "10px", background: callBg }}>{fmtIV(ce.iv)}</td>
+                      <td {...ceProps} style={{ padding: "10px", background: callBg, whiteSpace: "nowrap", minWidth: "70px" }}>{fmtOI(ce.volume)}</td>
+                      <td {...ceProps} style={{ padding: "10px", background: callBg, whiteSpace: "nowrap" }}>{renderOiChng(ce.oiChg, ce.oiChgPct)}</td>
+                      <td {...ceProps} style={{ padding: "10px", background: callBg, color: "var(--danger-color)", whiteSpace: "nowrap", minWidth: "70px" }}>{fmtOI(ce.oi)}</td>
+                      <td
+                        {...ceProps}
+                        style={{ padding: "10px", background: callBg, borderRight: "1px solid var(--border-color)", position: "relative" }}
+                      >
+                        {renderLtp(ce.ltp, ce.ltpChgPct)}
+                        {hoveredCell === `${strike}-CE` && <BsButtons optType="CE" ltp={ce.ltp} />}
+                      </td>
+
+                      {/* STRIKE */}
+                      {strikeCell}
+
+                      {/* PUT SIDE */}
+                      <td
+                        {...peProps}
+                        style={{ padding: "10px", background: putBg, position: "relative" }}
+                      >
+                        {renderLtp(pe.ltp, pe.ltpChgPct)}
+                        {hoveredCell === `${strike}-PE` && <BsButtons optType="PE" ltp={pe.ltp} />}
+                      </td>
+                      <td {...peProps} style={{ padding: "10px", background: putBg, color: "var(--success-color)", whiteSpace: "nowrap", minWidth: "70px" }}>{fmtOI(pe.oi)}</td>
+                      <td {...peProps} style={{ padding: "10px", background: putBg, whiteSpace: "nowrap" }}>{renderOiChng(pe.oiChg, pe.oiChgPct)}</td>
+                      <td {...peProps} style={{ padding: "10px", background: putBg, whiteSpace: "nowrap", minWidth: "70px" }}>{fmtOI(pe.volume)}</td>
+                      <td {...peProps} style={{ padding: "10px", background: putBg }}>{fmtIV(pe.iv)}</td>
+                      <td {...peProps} style={{ padding: "10px", background: putBg }}>{fmtGreeks(pe.delta)}</td>
+                      <td {...peProps} style={{ padding: "10px", background: putBg }}>{fmtGreeks(pe.gamma)}</td>
+                      <td {...peProps} style={{ padding: "10px", background: putBg }}>{fmtGreeks(pe.theta)}</td>
+                      <td {...peProps} style={{ padding: "10px", background: putBg }}>{fmtGreeks(pe.vega)}</td>
+                    </tr>
+                    {showSpotLineAtEnd && renderSpotDivider("after")}
+                  </React.Fragment>
                 );
               })
             )}

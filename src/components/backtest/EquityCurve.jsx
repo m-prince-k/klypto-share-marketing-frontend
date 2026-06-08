@@ -8,42 +8,33 @@ const EquityCurve = ({ equityData, benchmarkData }) => {
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    const chartOptions = {
+    const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: 'solid', color: 'transparent' },
         textColor: '#787b86',
       },
       grid: {
-        vertLines: { color: 'rgba(120, 123, 134, 0.2)' },
-        horzLines: { color: 'rgba(120, 123, 134, 0.2)' },
+        vertLines: { color: 'rgba(120, 123, 134, 0.15)' },
+        horzLines: { color: 'rgba(120, 123, 134, 0.15)' },
       },
-      timeScale: {
-        borderColor: 'rgba(120, 123, 134, 0.2)',
-        timeVisible: true,
-      },
-      rightPriceScale: {
-        borderColor: 'rgba(120, 123, 134, 0.2)',
-      },
-      crosshair: {
-        mode: 1,
-      },
-    };
-
-    const chart = createChart(chartContainerRef.current, chartOptions);
+      timeScale: { borderColor: '#2e3347', timeVisible: true },
+      rightPriceScale: { borderColor: '#2e3347' },
+      crosshair: { mode: 1 },
+    });
     chartRef.current = chart;
 
-    const equitySeries = chart.addSeries(LineSeries,{
-      color: 'var(--success-color)',
+    const equitySeries = chart.addSeries(LineSeries, {
+      color: '#089981',
       lineWidth: 2,
       title: 'Equity',
     });
     equitySeries.setData(equityData);
 
-    const benchmarkSeries = chart.addSeries(LineSeries,{
-      color: 'var(--text-secondary)',
+    const benchmarkSeries = chart.addSeries(LineSeries, {
+      color: '#f7931a',
       lineWidth: 1,
-      lineStyle: 2, // Dashed
-      title: 'Buy & Hold Benchmark',
+      lineStyle: 2,
+      title: 'Benchmark',
     });
     benchmarkSeries.setData(benchmarkData);
 

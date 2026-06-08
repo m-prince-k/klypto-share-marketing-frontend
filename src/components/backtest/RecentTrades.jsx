@@ -1,6 +1,32 @@
 import React from "react";
+import { formatIST } from "../../util/common";
 
 const RecentTrades = ({ data }) => {
+  const calculateDuration = (entryTime, exitTime) => {
+    if (!entryTime || !exitTime) return "—";
+
+    const start = new Date(entryTime);
+    const end = new Date(exitTime);
+
+    const diffMs = end - start;
+
+    if (diffMs <= 0) return "—";
+
+    const totalMinutes = Math.floor(diffMs / (1000 * 60));
+
+    const days = Math.floor(totalMinutes / (60 * 24));
+    const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+    const minutes = totalMinutes % 60;
+
+    const parts = [];
+
+    if (days) parts.push(`${days}d`);
+    if (hours) parts.push(`${hours}h`);
+    if (minutes || parts.length === 0) parts.push(`${minutes}m`);
+
+    return parts.join(" ");
+  };
+
   return (
     <div className="recent-trades-container">
       <div className="rt-header">
@@ -24,25 +50,80 @@ const RecentTrades = ({ data }) => {
             </tr>
           </thead>
           <tbody>
-            {data.map((trade) => (
-              <tr key={trade.id}>
-                <td>{trade.id}</td>
-                <td>{trade.entryTime}</td>
-                <td>{trade.exitTime}</td>
-                <td style={{ color: trade.direction === "Long" ? "var(--success-color)" : "var(--danger-color)" }}>{trade.direction}</td>
-                <td>{trade.symbol}</td>
-                <td>{trade.entryPrice.toFixed(2)}</td>
-                <td>{trade.exitPrice.toFixed(2)}</td>
-                <td style={{ color: trade.pnl >= 0 ? "var(--success-color)" : "var(--danger-color)" }}>
-                  {trade.pnl >= 0 ? "+" : "-"}${Math.abs(trade.pnl).toFixed(2)}
-                </td>
-                <td style={{ color: trade.pnlPct >= 0 ? "var(--success-color)" : "var(--danger-color)" }}>
-                  {trade.pnlPct >= 0 ? "+" : ""}{trade.pnlPct.toFixed(2)}%
-                </td>
-                <td>{trade.duration}</td>
-                <td style={{ color: trade.result === "Win" ? "var(--success-color)" : "var(--danger-color)" }}>{trade.result}</td>
-              </tr>
-            ))}
+            {(data || []).map((trade, idx) => {
+              const entryPrice = trade.entryPrice ?? null;
+              const exitPrice = trade.exitPrice ?? null;
+              const pnl = trade.pnlValue ?? null;
+              const pnlPct = trade.pnlPercentage ?? null;
+              const direction = trade.direction ?? "—";
+              const symbol = trade.symbol ?? "—";
+              const result =
+                trade.result ??
+                (pnl != null ? (pnl >= 0 ? "Win" : "Loss") : "—");
+              const entryTime = trade.entryTime ?? "—";
+              const exitTime = trade.exitTime ?? "—";
+              const duration = calculateDuration(entryTime, exitTime) ?? "—";
+              return (
+                <tr key={trade.id ?? idx}>
+                  <td>{idx + 1}</td>
+                  <td>{formatIST(entryTime)}</td>
+                  <td>{formatIST(exitTime)}</td>
+                  <td
+                    style={{
+                      color:
+                        direction === "Long" || direction === "BUY"
+                          ? "var(--success-color)"
+                          : "var(--danger-color)",
+                    }}
+                  >
+                    {direction}
+                  </td>
+                  <td>{symbol}</td>
+                  <td>
+                    {entryPrice != null ? Number(entryPrice).toFixed(2) : "—"}
+                  </td>
+                  <td>
+                    {exitPrice != null ? Number(exitPrice).toFixed(2) : "—"}
+                  </td>
+                  <td
+                    style={{
+                      color:
+                        pnl != null && pnl >= 0
+                          ? "var(--success-color)"
+                          : "var(--danger-color)",
+                      width: "10%",
+                    }}
+                  >
+                    {pnl != null
+                      ? `${pnl >= 0 ? "+" : "-"}₹${Math.abs(Number(pnl)).toFixed(2)}`
+                      : "—"}
+                  </td>
+                  <td
+                    style={{
+                      color:
+                        pnlPct != null && pnlPct >= 0
+                          ? "var(--success-color)"
+                          : "var(--danger-color)",
+                    }}
+                  >
+                    {pnlPct != null
+                      ? `${pnlPct >= 0 ? "+" : ""}${Number(pnlPct).toFixed(2)}%`
+                      : "—"}
+                  </td>
+                  <td>{duration}</td>
+                  <td
+                    style={{
+                      color:
+                        result === "Win"
+                          ? "var(--success-color)"
+                          : "var(--danger-color)",
+                    }}
+                  >
+                    {result}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

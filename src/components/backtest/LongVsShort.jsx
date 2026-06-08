@@ -5,12 +5,17 @@ import { Doughnut } from "react-chartjs-2";
 ChartJS.register(ArcElement, Tooltip, Legend);
 
 const LongVsShort = ({ data }) => {
+  const longPnl  = data?.long?.netPnl  ?? data?.long?.netPnL  ?? 0;
+  const shortPnl = data?.short?.netPnl ?? data?.short?.netPnL ?? 0;
+  const longPct  = data?.long?.percentage  ?? data?.long?.winRatePct  ?? 0;
+  const shortPct = data?.short?.percentage ?? data?.short?.winRatePct ?? 0;
+
   const chartData = {
     labels: ["Long", "Short"],
     datasets: [
       {
-        data: [data.long.netPnl, data.short.netPnl],
-        backgroundColor: ["var(--success-color)", "var(--danger-color)"],
+        data: [longPnl, shortPnl],
+        backgroundColor: ["#089981", "#f23645"],
         borderWidth: 0,
         cutout: "75%",
       },
@@ -21,20 +26,18 @@ const LongVsShort = ({ data }) => {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: {
-        display: false,
-      },
+      legend: { display: false },
       tooltip: {
-        backgroundColor: "var(--bg-secondary)",
-        titleColor: "var(--text-primary)",
-        bodyColor: "var(--text-primary)",
-        borderColor: "var(--border-color)",
+        backgroundColor: "#1a1d27",
+        titleColor: "#d1d4dc",
+        bodyColor: "#d1d4dc",
+        borderColor: "#2e3347",
         borderWidth: 1,
       },
     },
   };
 
-  const totalPnL = data.long.netPnl + data.short.netPnl;
+  const totalPnL = longPnl + shortPnl;
 
   return (
     <div className="long-short-container">
@@ -46,25 +49,25 @@ const LongVsShort = ({ data }) => {
           <Doughnut data={chartData} options={options} />
           <div className="ls-center-text">
             <span className="ls-center-lbl">Net PnL</span>
-            <span className="ls-center-val">${totalPnL.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+            <span className="ls-center-val">₹{totalPnL.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
           </div>
         </div>
         
         <div className="ls-legend">
           <div className="ls-legend-item">
             <div className="ls-legend-title">
-              <span className="ls-legend-color" style={{ background: "var(--success-color)" }}></span> Long
+              <span className="ls-legend-color" style={{ background: "#089981" }}></span> Long
             </div>
-            <div className="ls-legend-val" style={{ color: "var(--success-color)" }}>
-              ${data.long.netPnl.toLocaleString("en-US", { minimumFractionDigits: 2 })} ({data.long.percentage}%)
+            <div className="ls-legend-val" style={{ color: "#089981" }}>
+              ₹{longPnl.toLocaleString("en-IN", { minimumFractionDigits: 2 })} ({longPct}%)
             </div>
           </div>
           <div className="ls-legend-item">
             <div className="ls-legend-title">
-              <span className="ls-legend-color" style={{ background: "var(--danger-color)" }}></span> Short
+              <span className="ls-legend-color" style={{ background: "#f23645" }}></span> Short
             </div>
-            <div className="ls-legend-val" style={{ color: "var(--success-color)" }}>
-              ${data.short.netPnl.toLocaleString("en-US", { minimumFractionDigits: 2 })} ({data.short.percentage}%)
+            <div className="ls-legend-val" style={{ color: "#f23645" }}>
+              ₹{shortPnl.toLocaleString("en-IN", { minimumFractionDigits: 2 })} ({shortPct}%)
             </div>
           </div>
         </div>

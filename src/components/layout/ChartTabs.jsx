@@ -74,7 +74,7 @@ const ChartTabs = ({ activeTab, setActiveTab, onCodeClick }) => {
     },
   };
 
-  const tabs = ["Chart", "Overview", "Option Chain", "Alerts","OI Analytics"];
+  const tabs = ["Chart", "Overview", "Option Chain","OI Analytics"];
 
   return (
     <div style={styles.container}>

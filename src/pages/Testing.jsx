@@ -62,7 +62,7 @@ const OptionChainUI = () => {
   // Initialize Socket Connection
   useEffect(() => {
     // Connect to backend (adjust URL if backend is hosted elsewhere)
-    const socket = io('http://192.168.1.11:3000');
+    const socket = io('http://192.168.1.6:3000');
     setSocketInstance(socket);
 
     socket.on('connect', () => {
@@ -77,7 +77,7 @@ const OptionChainUI = () => {
 
     // Listen for live data updates
     socket.on('option-chain-data', (response) => {
-      if (response && response.data) {
+      if (response && response.data && response.data.length > 0) {
         setLiveData(response.data);
       }
     });

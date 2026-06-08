@@ -326,7 +326,7 @@ export default function SearchSelect({ stocks, stock, setStock, onSelect, style 
               const isActive = s.token === (stock?.token ?? stock);
               return (
                 <div
-                  key={s.token ?? i}
+                  key={s.token ? `${s.token}-${i}` : i}
                   onMouseDown={() => handleSelect(s)}
                   onMouseEnter={() => setHighlighted(i)}
                   style={{
