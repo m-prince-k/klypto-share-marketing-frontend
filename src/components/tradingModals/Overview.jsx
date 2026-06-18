@@ -177,28 +177,50 @@ const Overview = ({ selectedCurrency }) => {
 
   const raw = dataPayload.raw || {};
   const tick = dataPayload.tick || {};
+  const overview = dataPayload.overview || {};
   
-  // Use tick as fallback for basic fields if raw is empty
-  const ltp = raw.ltp ?? tick.close ?? "--";
-  const netChange = raw.netChange ?? 0;
-  const percentChange = raw.percentChange ?? 0;
-  const open = raw.open ?? tick.open ?? "--";
-  const high = raw.high ?? tick.high ?? "--";
-  const low = raw.low ?? tick.low ?? "--";
-  const close = raw.close ?? tick.close ?? "--";
+  // Basic Fields
+  const ltp = overview.last_traded_price ?? tick.last_traded_price ?? raw.last_traded_price ?? "--";
+  const netChange = overview.net_change ?? tick.net_change ?? raw.change ?? 0;
+  const percentChange = overview.percent_change ?? tick.percent_change ?? raw.percent_change ?? 0;
   
-  const isPositive = Number(netChange) >= 0;
+  const open = overview.open ?? tick.open ?? "--";
+  const high = overview.day_high ?? tick.day_high ?? tick.high ?? "--";
+  const low = overview.day_low ?? tick.day_low ?? tick.low ?? "--";
+  const close = overview.close ?? tick.close ?? raw.close_price ?? "--";
+  
+  const isPositive = String(netChange).startsWith('+') || Number(netChange) >= 0;
   const changeColor = isPositive ? "var(--success-color)" : "var(--danger-color)";
 
+  // Additional Data
+  const tradeVolume = overview.volume ?? tick.volume ?? 0;
+  const opnInterest = overview.open_interest ?? tick.open_interest ?? 0;
+  const lastTradeQty = overview.last_trade_quantity ?? tick.last_trade_quantity ?? 0;
+  
+  const exchFeedTime = overview.exchange_feed_time ?? tick.exchange_feed_time ?? "--";
+  const exchTradeTime = overview.exchange_trade_time ?? tick.exchange_trade_time ?? "--";
+  
+  const lowerCircuit = overview.lower_circuit ?? tick.lower_circuit ?? "--";
+  const upperCircuit = overview.upper_circuit ?? tick.upper_circuit ?? "--";
+  const week52Low = overview.fiftytwo_week_low ?? tick.fiftytwo_week_low ?? "--";
+  const week52High = overview.fiftytwo_week_high ?? tick.fiftytwo_week_high ?? "--";
+  
+  const totBuyQuan = overview.total_buy_quantity ?? tick.total_buy_quantity ?? 0;
+  const totSellQuan = overview.total_sell_quantity ?? tick.total_sell_quantity ?? 0;
+
   // Depth Parsing
-  const buyDepth = raw?.depth?.buy || [];
-  const sellDepth = raw?.depth?.sell || [];
+  const buyDepth = overview.best_five_buy ?? tick.best_five_buy ?? [];
+  const sellDepth = overview.best_five_sell ?? tick.best_five_sell ?? [];
   const maxBuyQty = Math.max(...buyDepth.map(b => Number(b.quantity)), 0);
   const maxSellQty = Math.max(...sellDepth.map(s => Number(s.quantity)), 0);
   
   const bestBuy = buyDepth.length > 0 ? buyDepth[0]?.price : null;
   const bestSell = sellDepth.length > 0 ? sellDepth[0]?.price : null;
   const spread = (bestSell != null && bestBuy != null) ? (bestSell - bestBuy) : null;
+  
+  const tradingSymbol = raw.symbol || dataPayload.symbol || "--";
+  const symbolToken = raw.token || "--";
+  const exchange = raw.exchange || "NSE";
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: 20, background: "var(--bg-primary)", color: "var(--text-primary)", overflowY: "auto", gap: 16 }}>
@@ -208,14 +230,14 @@ const Overview = ({ selectedCurrency }) => {
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           {/* Logo Placeholder */}
           <div style={{ width: 48, height: 48, background: "#fff", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#d32f2f", fontWeight: 800, fontSize: 18 }}>
-            {raw.tradingSymbol ? raw.tradingSymbol.substring(0, 3).toUpperCase() : "SYM"}
+            {tradingSymbol !== "--" ? tradingSymbol.substring(0, 3).toUpperCase() : "SYM"}
           </div>
           <div>
             <div style={{ fontSize: 20, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
-              {raw.tradingSymbol || selectedCurrency?.name}
+              {tradingSymbol}
             </div>
             <div style={{ fontSize: 13, color: "var(--success-color)", fontWeight: 500 }}>
-              {raw.exchange || "NSE"}
+              {exchange}
             </div>
           </div>
         </div>
@@ -239,11 +261,11 @@ const Overview = ({ selectedCurrency }) => {
         <div style={{ width: 1, background: "var(--border-color)" }} />
         <TopStat label="Prev Close" value={fmt(close)} />
         <div style={{ width: 1, background: "var(--border-color)" }} />
-        <TopStat label="Avg Price" value={fmt(raw.avgPrice)} />
+        <TopStat label="Avg Price" value={fmt(overview.avgPrice || "--")} />
         <div style={{ width: 1, background: "var(--border-color)" }} />
-        <TopStat label="Volume" value={fmt(raw.tradeVolume, 0)} />
+        <TopStat label="Volume" value={fmt(tradeVolume, 0)} />
         <div style={{ width: 1, background: "var(--border-color)" }} />
-        <TopStat label="OI" value={fmt(raw.opnInterest, 0)} />
+        <TopStat label="OI" value={fmt(opnInterest, 0)} />
       </div>
 
       {/* ── MIDDLE PANELS ── */}
@@ -256,28 +278,28 @@ const Overview = ({ selectedCurrency }) => {
           </div>
           <div style={{ display: "flex", gap: 32 }}>
             <div style={{ flex: 1 }}>
-              <InfoRow label="Exchange" value={raw.exchange || "NSE"} />
-              <InfoRow label="Trading Symbol" value={raw.tradingSymbol || dataPayload.symbol || "--"} />
-              <InfoRow label="Symbol Token" value={raw.symbolToken || "--"} />
+              <InfoRow label="Exchange" value={exchange} />
+              <InfoRow label="Trading Symbol" value={tradingSymbol} />
+              <InfoRow label="Symbol Token" value={symbolToken} />
               <InfoRow label="Last Traded Price (LTP)" value={fmt(ltp)} color="var(--success-color)" />
               <InfoRow label="Net Change" value={fmt(netChange)} color={changeColor} />
               <InfoRow label="Percent Change" value={pct(percentChange)} color={changeColor} />
-              <InfoRow label="Last Trade Quantity" value={fmt(raw.lastTradeQty, 0)} />
-              <InfoRow label="Trade Volume" value={fmt(raw.tradeVolume, 0)} />
-              <InfoRow label="Open Interest" value={fmt(raw.opnInterest, 0)} />
+              <InfoRow label="Last Trade Quantity" value={fmt(lastTradeQty, 0)} />
+              <InfoRow label="Trade Volume" value={fmt(tradeVolume, 0)} />
+              <InfoRow label="Open Interest" value={fmt(opnInterest, 0)} />
             </div>
             <div style={{ flex: 1 }}>
-              <InfoRow label="Exchange Feed Time" value={raw.exchFeedTime} />
-              <InfoRow label="Exchange Trade Time" value={raw.exchTradeTime} />
+              <InfoRow label="Exchange Feed Time" value={exchFeedTime} />
+              <InfoRow label="Exchange Trade Time" value={exchTradeTime} />
               <div style={{ height: 16 }} /> {/* Spacer */}
-              <InfoRow label="Lower Circuit" value={fmt(raw.lowerCircuit)} color="var(--danger-color)" />
-              <InfoRow label="Upper Circuit" value={fmt(raw.upperCircuit)} color="var(--success-color)" />
+              <InfoRow label="Lower Circuit" value={fmt(lowerCircuit)} color="var(--danger-color)" />
+              <InfoRow label="Upper Circuit" value={fmt(upperCircuit)} color="var(--success-color)" />
               <div style={{ height: 16 }} /> {/* Spacer */}
-              <InfoRow label="52 Week Low" value={fmt(raw["52WeekLow"])} color="var(--danger-color)" />
-              <InfoRow label="52 Week High" value={fmt(raw["52WeekHigh"])} color="var(--success-color)" />
+              <InfoRow label="52 Week Low" value={fmt(week52Low)} color="var(--danger-color)" />
+              <InfoRow label="52 Week High" value={fmt(week52High)} color="var(--success-color)" />
               <div style={{ height: 16 }} /> {/* Spacer */}
-              <InfoRow label="Total Buy Quantity" value={fmt(raw.totBuyQuan, 0)} />
-              <InfoRow label="Total Sell Quantity" value={fmt(raw.totSellQuan, 0)} />
+              <InfoRow label="Total Buy Quantity" value={fmt(totBuyQuan, 0)} />
+              <InfoRow label="Total Sell Quantity" value={fmt(totSellQuan, 0)} />
             </div>
           </div>
         </div>

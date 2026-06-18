@@ -10,6 +10,7 @@ import { ProtectedRoute } from "./pages/auth/ProtectedRoute";
 import Testing from "./pages/Testing";
 import Backtest from "./pages/backtest/Backtest";
 import Signals from "./pages/Signals";
+import OptionChain from "./pages/OptionChain";
 import "./indicatorLogger";
 
 function App() {
@@ -35,6 +36,7 @@ function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/backtest" element={<Backtest />} />
             <Route path="/signals" element={<Signals />} />
+            <Route path="/optionchain" element={<OptionChain />} />
           </Route>
         </Routes>
       </div>

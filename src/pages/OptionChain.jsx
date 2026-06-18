@@ -1,0 +1,730 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Container, Row, Col, Table, Form, Button, Pagination, Card, Badge, InputGroup, Spinner } from 'react-bootstrap';
+import { FaFilter, FaSort, FaSortUp, FaSortDown, FaCalendarAlt, FaUndo } from 'react-icons/fa';
+import apiService from '../services/apiServices';
+import { getStrategySocket } from '../services/websocket/socket';
+
+/* ─── Design tokens ──────────────────────────────────────────────────────── */
+const styles = `
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root {
+    --oc-bg:           #f0f2f7;
+    --oc-surface:      #ffffff;
+    --oc-navy:         #1a1f36;
+    --oc-accent:       #7F77DD;
+    --oc-accent-hover: #6960cc;
+    --oc-accent-light: #ede9ff;
+    --oc-border:       #e4e7ef;
+    --oc-muted:        #7b8197;
+    --oc-green:        #089981;
+    --oc-red:          #f23645;
+    --oc-text:         #1a1f36;
+    --oc-radius:       12px;
+    --oc-radius-sm:    8px;
+    --oc-shadow:       0 2px 12px rgba(26,31,54,.07);
+    --oc-shadow-md:    0 4px 20px rgba(26,31,54,.10);
+  }
+
+  /* Page shell */
+  .oc-page {
+    background: var(--oc-bg);
+    min-height: 100vh;
+    padding: 28px 24px;
+    font-family: 'Inter', sans-serif;
+    color: var(--oc-text);
+  }
+
+  /* ── Header ── */
+  .oc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+  }
+  .oc-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--oc-navy);
+    letter-spacing: -0.3px;
+    margin: 0;
+    line-height: 1.2;
+  }
+  .oc-subtitle {
+    font-size: 13px;
+    color: var(--oc-muted);
+    margin: 3px 0 0;
+    font-weight: 400;
+  }
+
+  /* ── Filter card ── */
+  .oc-filter-card {
+    background: var(--oc-surface);
+    border-radius: var(--oc-radius);
+    border: 1px solid var(--oc-border);
+    box-shadow: var(--oc-shadow);
+    padding: 20px 24px;
+    margin-bottom: 20px;
+  }
+  .oc-filter-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--oc-muted);
+    margin-bottom: 6px;
+    display: block;
+  }
+  .oc-select, .oc-date-input {
+    height: 42px !important;
+    font-size: 13.5px !important;
+    font-family: 'Inter', sans-serif !important;
+    border: 1.5px solid var(--oc-border) !important;
+    border-radius: var(--oc-radius-sm) !important;
+    background: #fafbfd !important;
+    color: var(--oc-text) !important;
+    transition: border-color .18s, box-shadow .18s !important;
+    box-shadow: none !important;
+  }
+  .oc-select:focus, .oc-date-input:focus {
+    border-color: var(--oc-accent) !important;
+    box-shadow: 0 0 0 3px rgba(127,119,221,.13) !important;
+  }
+  .oc-input-icon {
+    background: #fafbfd !important;
+    border: 1.5px solid var(--oc-border) !important;
+    border-right: none !important;
+    border-radius: var(--oc-radius-sm) 0 0 var(--oc-radius-sm) !important;
+    color: var(--oc-muted) !important;
+    height: 42px !important;
+    display: flex;
+    align-items: center;
+    padding: 0 11px;
+    cursor: pointer;
+    transition: color .18s;
+  }
+  .oc-input-icon:hover { color: var(--oc-accent) !important; }
+  .oc-date-input {
+    border-left: none !important;
+    border-radius: 0 var(--oc-radius-sm) var(--oc-radius-sm) 0 !important;
+  }
+
+  /* Buttons */
+  .oc-btn-apply {
+    height: 42px;
+    background: var(--oc-accent) !important;
+    border: none !important;
+    border-radius: var(--oc-radius-sm) !important;
+    font-size: 13.5px !important;
+    font-weight: 600 !important;
+    font-family: 'Inter', sans-serif !important;
+    letter-spacing: 0.2px;
+    transition: background .18s, transform .1s, box-shadow .18s !important;
+    box-shadow: 0 2px 8px rgba(127,119,221,.30) !important;
+  }
+  .oc-btn-apply:hover {
+    background: var(--oc-accent-hover) !important;
+    box-shadow: 0 4px 14px rgba(127,119,221,.38) !important;
+    transform: translateY(-1px);
+  }
+  .oc-btn-apply:active { transform: translateY(0) !important; }
+
+  .oc-btn-reset {
+    height: 42px;
+    border: 1.5px solid var(--oc-border) !important;
+    border-radius: var(--oc-radius-sm) !important;
+    background: var(--oc-surface) !important;
+    color: var(--oc-muted) !important;
+    font-size: 13.5px !important;
+    font-weight: 600 !important;
+    font-family: 'Inter', sans-serif !important;
+    letter-spacing: 0.2px;
+    transition: border-color .18s, color .18s, background .18s !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px !important;
+  }
+  .oc-btn-reset:hover {
+    border-color: var(--oc-accent) !important;
+    color: var(--oc-accent) !important;
+    background: var(--oc-accent-light) !important;
+  }
+
+  /* ── Table card ── */
+  .oc-table-card {
+    background: var(--oc-surface);
+    border-radius: var(--oc-radius);
+    border: 1px solid var(--oc-border);
+    box-shadow: var(--oc-shadow);
+    overflow: hidden;
+  }
+
+  /* Table */
+  .oc-table {
+    margin: 0 !important;
+    min-width: 1200px;
+    font-family: 'Inter', sans-serif;
+  }
+  .oc-table thead tr {
+    background: #f7f8fc;
+    border-bottom: 1.5px solid var(--oc-border);
+  }
+  .oc-table thead th {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.55px;
+    color: var(--oc-muted);
+    padding: 13px 16px !important;
+    border: none !important;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition: color .15s;
+  }
+  .oc-table thead th:hover { color: var(--oc-accent); }
+  .oc-table thead th .sort-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+  }
+
+  .oc-table tbody tr {
+    border-bottom: 1px solid #f0f2f7 !important;
+    transition: background .12s;
+  }
+  .oc-table tbody tr:hover {
+    background: #faf9ff !important;
+  }
+  .oc-table tbody tr:last-child { border-bottom: none !important; }
+
+  .oc-table td {
+    padding: 11px 16px !important;
+    border: none !important;
+    vertical-align: middle !important;
+    font-size: 13px;
+  }
+
+  /* Mono cells for numbers/prices */
+  .oc-mono {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12.5px;
+    font-weight: 500;
+  }
+  .oc-cell-date    { color: var(--oc-muted); font-size: 12.5px; }
+  .oc-cell-symbol  { font-weight: 700; color: var(--oc-navy); font-size: 13.5px; letter-spacing: -0.2px; }
+  .oc-cell-expiry  { color: var(--oc-muted); font-size: 12.5px; }
+  .oc-cell-strike  { font-weight: 600; color: var(--oc-navy); }
+  .oc-cell-high    { color: var(--oc-green); }
+  .oc-cell-low     { color: var(--oc-red); }
+  .oc-cell-close   { font-weight: 600; color: var(--oc-navy); }
+  .oc-cell-muted   { color: #5a5f7a; }
+
+  /* Type badge */
+  .oc-badge-ce, .oc-badge-pe {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: 'Inter', sans-serif;
+    letter-spacing: 0.4px;
+  }
+  .oc-badge-ce {
+    background: rgba(8,153,129,.10);
+    color: var(--oc-green);
+  }
+  .oc-badge-pe {
+    background: rgba(242,54,69,.10);
+    color: var(--oc-red);
+  }
+
+  /* Empty state */
+  .oc-empty {
+    padding: 60px 0;
+    text-align: center;
+    color: var(--oc-muted);
+  }
+  .oc-empty-icon {
+    font-size: 36px;
+    margin-bottom: 12px;
+    opacity: .35;
+  }
+  .oc-empty h6 {
+    font-weight: 600;
+    color: #4a4f6a;
+    margin-bottom: 4px;
+    font-size: 14px;
+  }
+  .oc-empty p {
+    font-size: 13px;
+    margin: 0;
+    color: var(--oc-muted);
+  }
+
+  /* ── Footer / Pagination ── */
+  .oc-footer {
+    padding: 14px 20px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    border-top: 1.5px solid var(--oc-border);
+    background: #fafbfd;
+  }
+  .oc-footer-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .oc-rows-label {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--oc-muted);
+    white-space: nowrap;
+  }
+  .oc-select-rows {
+    height: 34px !important;
+    width: 76px !important;
+    font-size: 13px !important;
+    border: 1.5px solid var(--oc-border) !important;
+    border-radius: 7px !important;
+    background: var(--oc-surface) !important;
+    color: var(--oc-text) !important;
+    box-shadow: none !important;
+    padding: 0 8px !important;
+  }
+  .oc-total-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--oc-accent-light);
+    color: var(--oc-accent);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  /* Pagination */
+  .oc-pagination .page-item .page-link {
+    border: 1.5px solid var(--oc-border) !important;
+    border-radius: 7px !important;
+    margin: 0 2px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--oc-muted) !important;
+    padding: 5px 11px;
+    transition: all .15s;
+    background: var(--oc-surface) !important;
+    box-shadow: none !important;
+    font-family: 'Inter', sans-serif;
+  }
+  .oc-pagination .page-item.active .page-link {
+    background: var(--oc-accent) !important;
+    border-color: var(--oc-accent) !important;
+    color: #fff !important;
+    box-shadow: 0 2px 8px rgba(127,119,221,.28) !important;
+  }
+  .oc-pagination .page-item:not(.active):not(.disabled) .page-link:hover {
+    background: var(--oc-accent-light) !important;
+    border-color: var(--oc-accent) !important;
+    color: var(--oc-accent) !important;
+  }
+  .oc-pagination .page-item.disabled .page-link {
+    opacity: .35;
+    pointer-events: none;
+  }
+
+  /* Sort icon colours */
+  .sort-icon-muted  { color: #c5c8d8; }
+  .sort-icon-active { color: var(--oc-accent); }
+
+  /* Light Scrollbar Styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--oc-surface);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--oc-border);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #c0c4d6;
+  }
+`;
+
+const OptionChain = () => {
+  const [data, setData] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const [stockFilter, setStockFilter] = useState('');
+  const [expiryFilter, setExpiryFilter] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [appliedFromDate, setAppliedFromDate] = useState('');
+  const [appliedToDate, setAppliedToDate] = useState('');
+  
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [recordsPerPage, setRecordsPerPage] = useState(10);
+  const [totalRecords, setTotalRecords] = useState(0);
+
+  const fromDateRef = useRef(null);
+  const toDateRef = useRef(null);
+
+  const [uniqueStocks, setUniqueStocks] = useState([]);
+  const [uniqueExpiries, setUniqueExpiries] = useState([]);
+
+  useEffect(() => {
+    const fetchSymbols = async () => {
+      try {
+        const res = await apiService.get('/options/symbols');
+        if (Array.isArray(res)) setUniqueStocks(res);
+        else if (res?.data && Array.isArray(res.data)) setUniqueStocks(res.data);
+      } catch (err) {
+        console.error("Error fetching symbols:", err);
+      }
+    };
+    fetchSymbols();
+
+    // Setup websocket for live strategy ticks
+    const socket = getStrategySocket();
+    const handleLiveTick = (payload) => {
+      if (!payload || !payload.symbol || !payload.tick) return;
+      
+      setData((prevData) => prevData.map((item) => {
+        const itemSymbol = item._symbol || item.symbol;
+        if (itemSymbol === payload.symbol) {
+          return {
+            ...item,
+            open: payload.tick.open,
+            high: payload.tick.high,
+            low: payload.tick.low,
+            close: payload.tick.close,
+            volume: payload.tick.volume,
+            oi: payload.tick.open_interest !== undefined ? payload.tick.open_interest : item.oi,
+          };
+        }
+        return item;
+      }));
+    };
+
+    // Listening to a few likely event names since it wasn't specified
+    socket.on("live_tick", handleLiveTick);
+    socket.on("tick", handleLiveTick);
+    socket.on("strategy_live_tick", handleLiveTick);
+    socket.on("strategy_tick", handleLiveTick);
+
+    return () => {
+      socket.off("live_tick", handleLiveTick);
+      socket.off("tick", handleLiveTick);
+      socket.off("strategy_live_tick", handleLiveTick);
+      socket.off("strategy_tick", handleLiveTick);
+    };
+  }, []);
+
+  useEffect(() => {
+    const fetchExpiries = async () => {
+      if (stockFilter) {
+        try {
+          const res = await apiService.get('/options/expiries', { stockName: stockFilter });
+          if (Array.isArray(res)) setUniqueExpiries(res);
+          else if (res?.data && Array.isArray(res.data)) setUniqueExpiries(res.data);
+        } catch (err) {
+          console.error("Error fetching expiries:", err);
+        }
+      } else {
+        setUniqueExpiries([]);
+      }
+    };
+    fetchExpiries();
+  }, [stockFilter]);
+
+  const sortKey = sortConfig.key;
+  const sortDirection = sortConfig.direction;
+
+  const fetchTableData = useCallback(async () => {
+    const params = {
+      page: currentPage,
+      limit: recordsPerPage,
+      ...(stockFilter && { stockName: stockFilter }),
+      ...(expiryFilter && { expiryDate: expiryFilter }),
+      ...(appliedFromDate && { fromDate: appliedFromDate }),
+      ...(appliedToDate && { toDate: appliedToDate }),
+      ...(sortKey && { sortBy: sortKey }),
+      ...(sortKey && { sortOrder: sortDirection === 'asc' ? 'DESC' : 'ASC' }),
+    };
+    setIsLoading(true);
+    try {
+      const res = await apiService.get('/options/data-table', params);
+      let records = [];
+      let total = 0;
+      if (res?.data && Array.isArray(res.data)) {
+        records = res.data;
+        total = res?.pagination?.totalRecords ?? res.totalRecords ?? res.pagination?.total ?? res.total ?? records.length;
+      } else if (res?.records && Array.isArray(res.records)) {
+        records = res.records;
+        total = res?.pagination?.totalRecords ?? res.totalRecords ?? res.total ?? records.length;
+      } else if (Array.isArray(res)) {
+        records = res;
+        total = res.length;
+      }
+      setData(records);
+      setTotalRecords(total);
+    } catch (err) {
+      console.error("Error fetching table data:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentPage, recordsPerPage, stockFilter, expiryFilter, appliedFromDate, appliedToDate, sortKey, sortDirection]);
+
+  useEffect(() => { fetchTableData(); }, [fetchTableData]);
+
+  const handleApplyDateRange = () => {
+    setAppliedFromDate(fromDate);
+    setAppliedToDate(toDate);
+    setCurrentPage(1);
+  };
+
+  const handleResetFilters = () => {
+    setStockFilter('');
+    setExpiryFilter('');
+    setFromDate('');
+    setToDate('');
+    setAppliedFromDate('');
+    setAppliedToDate('');
+    setSortConfig({ key: null, direction: 'asc' });
+    setCurrentPage(1);
+  };
+
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIcon = (key) => {
+    if (sortConfig.key !== key) return <FaSort className="sort-icon-muted" size={10} />;
+    if (sortConfig.direction === 'asc') return <FaSortUp className="sort-icon-active" size={10} />;
+    return <FaSortDown className="sort-icon-active" size={10} />;
+  };
+
+  const totalPages = Math.ceil(totalRecords / recordsPerPage) || 1;
+
+  const handlePageChange = (page) => {
+    if (page >= 1 && page <= totalPages) setCurrentPage(page);
+  };
+
+  const columns = [
+    { key: 'date_ist',              label: 'Date'    },
+    { key: '_stock_name',           label: 'Symbol'  },
+    { key: 'expiry_date',           label: 'Expiry'  },
+    { key: 'strike',                label: 'Strike'  },
+    { key: 'request_option_type',   label: 'Type'    },
+    { key: 'open',                  label: 'Open'    },
+    { key: 'high',                  label: 'High'    },
+    { key: 'low',                   label: 'Low'     },
+    { key: 'close',                 label: 'Close'   },
+    { key: 'volume',                label: 'Volume'  },
+    { key: 'oi',                    label: 'OI'      },
+    { key: 'iv',                    label: 'IV'      },
+  ];
+
+  const todayDateStr = new Date().toISOString().split('T')[0];
+
+  return (
+    <>
+      <style>{styles}</style>
+
+      <div className="oc-page">
+        {/* Header */}
+        <div className="oc-header">
+          <div>
+            <h2 className="oc-title">Option Chain Scanner</h2>
+            <p className="oc-subtitle">Filter, sort, and analyse historical options data</p>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="oc-filter-card">
+          <Row className="g-3 align-items-end">
+            <Col md={3}>
+              <label className="oc-filter-label">Stock Name</label>
+              <Form.Select
+                value={stockFilter}
+                onChange={(e) => { setStockFilter(e.target.value); setExpiryFilter(''); setCurrentPage(1); }}
+                className="oc-select"
+              >
+                <option value="">All Stocks</option>
+                {uniqueStocks.map((stock, idx) => {
+                  const v = stock?.symbol || stock?.stockName || stock;
+                  return <option key={idx} value={v}>{v}</option>;
+                })}
+              </Form.Select>
+            </Col>
+
+            <Col md={2}>
+              <label className="oc-filter-label">Expiry Date</label>
+              <Form.Select
+                value={expiryFilter}
+                onChange={(e) => { setExpiryFilter(e.target.value); setCurrentPage(1); }}
+                className="oc-select"
+                disabled={!stockFilter && uniqueExpiries.length === 0}
+              >
+                <option value="">All Expiries</option>
+                {uniqueExpiries.map((expiry, idx) => {
+                  const v = expiry?.expiryDate || expiry?.date || expiry;
+                  return <option key={idx} value={v}>{v}</option>;
+                })}
+              </Form.Select>
+            </Col>
+
+            <Col md={2}>
+              <label className="oc-filter-label">From Date</label>
+              <InputGroup>
+                <InputGroup.Text className="oc-input-icon" onClick={() => fromDateRef.current?.showPicker()}>
+                  <FaCalendarAlt size={13} />
+                </InputGroup.Text>
+                <Form.Control type="date" ref={fromDateRef} value={fromDate} max={todayDateStr} onChange={(e) => setFromDate(e.target.value)} className="oc-select oc-date-input" />
+              </InputGroup>
+            </Col>
+
+            <Col md={2}>
+              <label className="oc-filter-label">To Date</label>
+              <InputGroup>
+                <InputGroup.Text className="oc-input-icon" onClick={() => toDateRef.current?.showPicker()}>
+                  <FaCalendarAlt size={13} />
+                </InputGroup.Text>
+                <Form.Control type="date" ref={toDateRef} value={toDate} max={todayDateStr} onChange={(e) => setToDate(e.target.value)} className="oc-select oc-date-input" />
+              </InputGroup>
+            </Col>
+
+            <Col md={3}>
+              <div className="d-flex gap-2">
+                <Button className="oc-btn-apply w-50 d-flex align-items-center justify-content-center gap-2" onClick={handleApplyDateRange}>
+                  <FaFilter size={12} /> Apply Filters
+                </Button>
+                <Button className="oc-btn-reset w-50 d-flex align-items-center justify-content-center gap-2" onClick={handleResetFilters} title="Reset all filters">
+                  <FaUndo size={13} /> Reset
+                </Button>
+              </div>
+            </Col>
+          </Row>
+        </div>
+
+        {/* Table */}
+        <div className="oc-table-card" style={{ position: 'relative' }}>
+          {isLoading && (
+            <div style={{
+              position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              backgroundColor: 'rgba(255, 255, 255, 0.4)', zIndex: 10
+            }}>
+              <Spinner animation="border" variant="primary" />
+            </div>
+          )}
+          <div className="table-responsive" style={{ filter: isLoading ? 'blur(3px)' : 'none', transition: 'filter 0.2s ease' }}>
+            <Table className="oc-table">
+              <thead>
+                <tr>
+                  {columns.map(({ key, label }) => (
+                    <th key={key} onClick={() => handleSort(key)}>
+                      <div className="sort-wrap">{label} {getSortIcon(key)}</div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.length > 0 ? (
+                  data.map((item, idx) => (
+                    <tr key={item._id?.$oid || item.id || idx}>
+                      <td className="oc-cell-date oc-mono">{item.date_ist || item.date}</td>
+                      <td className="oc-cell-symbol">{item._symbol || item.symbol}</td>
+                      <td className="oc-cell-expiry oc-mono">{item.expiry_date || item.expiryDate}</td>
+                      <td className="oc-cell-strike oc-mono">{item.strike}</td>
+                      <td>
+                        <span className={item.optionType === 'CE' ? 'oc-badge-ce' : 'oc-badge-pe'}>
+                          {item.optionType}
+                        </span>
+                      </td>
+                      <td className="oc-cell-muted oc-mono">{item.open}</td>
+                      <td className="oc-cell-high oc-mono">{item.high}</td>
+                      <td className="oc-cell-low oc-mono">{item.low}</td>
+                      <td className="oc-cell-close oc-mono">{item.close}</td>
+                      <td className="oc-cell-muted oc-mono">{Number(item.volume).toLocaleString()}</td>
+                      <td className="oc-cell-muted oc-mono">{Number(item.oi).toLocaleString()}</td>
+                      <td className="oc-cell-muted oc-mono">{item.iv}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="12">
+                      <div className="oc-empty">
+                        <div className="oc-empty-icon">⛓️</div>
+                        <h6>No records found</h6>
+                        <p>Try adjusting your filters to see results.</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </Table>
+          </div>
+
+          {/* Footer */}
+          <div className="oc-footer">
+            <div className="oc-footer-left">
+              <span className="oc-rows-label">Rows per page</span>
+              <Form.Select
+                value={recordsPerPage}
+                onChange={(e) => { setRecordsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                className="oc-select-rows"
+              >
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </Form.Select>
+              <span className="oc-total-badge">
+                {totalRecords.toLocaleString()} records
+              </span>
+            </div>
+
+            <Pagination className="oc-pagination mb-0">
+              <Pagination.First onClick={() => handlePageChange(1)} disabled={currentPage === 1} />
+              <Pagination.Prev onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} />
+
+              {[...Array(totalPages)].map((_, i) => {
+                const pageNum = i + 1;
+                if (pageNum === 1 || pageNum === totalPages || (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)) {
+                  return (
+                    <Pagination.Item key={pageNum} active={pageNum === currentPage} onClick={() => handlePageChange(pageNum)}>
+                      {pageNum}
+                    </Pagination.Item>
+                  );
+                }
+                if (pageNum === currentPage - 2 || pageNum === currentPage + 2) {
+                  return <Pagination.Ellipsis key={pageNum} disabled />;
+                }
+                return null;
+              })}
+
+              <Pagination.Next onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} />
+              <Pagination.Last onClick={() => handlePageChange(totalPages)} disabled={currentPage === totalPages} />
+            </Pagination>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+};
+
+export default OptionChain;

@@ -7,7 +7,7 @@ const getUserId = () => {
   return user?.id || user?._id || "123";
 };
 
-const socket = io("http://192.168.1.6:8000", {
+const socket = io("http://192.168.1.14:4000", {
   transports: ["websocket", "polling"],
   reconnection: true,
 });
@@ -17,7 +17,7 @@ let strategySocketInstance = null;
 
 export const getStrategySocket = () => {
   if (!strategySocketInstance) {
-    strategySocketInstance = io("http://192.168.1.6:8000", {
+    strategySocketInstance = io("http://192.168.1.14:4000", {
       query: { userId: getUserId() },
       transports: ["websocket", "polling"],
       reconnection: true,
