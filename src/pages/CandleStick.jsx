@@ -278,7 +278,7 @@ plot_markers(markers)`
 
   // 1. Initial Dashboard Fetch (Replaces Polling)
   useEffect(() => {
-    if (!isDeployed || !deployedStrategyCode) {
+    if (!isDeployed || !deployedStrategyCode || deployedStrategyCode === "API_PREDICTION") {
       return;
     }
 
@@ -454,7 +454,7 @@ plot_markers(markers)`
     }
 
     setCustomSignals(newSignals);
-  }, [dashboardSignals, isDeployed, selectedCurrency, mainChartLoading, chartType]);
+  }, [dashboardSignals, isDeployed, selectedCurrency]);
 
   const handleDeployCode = useCallback(
     async (code) => {
@@ -1602,30 +1602,45 @@ json.dumps(result, default=json_default)
       if (!chartRef.current) return;
 
       const raw = response?.data || [];
-      const symbolFromResponse = raw[0]?.symbol;
+      const symbolFromResponse = response?.symbol || raw[0]?.symbol || selectedCurrency?.name;
 
-      const data = raw
-        .map((d) => ({
+      const parsedData = new Array(raw.length);
+      for (let i = 0; i < raw.length; i++) {
+        const d = raw[i];
+        parsedData[i] = {
           time: Number(d.time) + IST_OFFSET,
           open: parseFloat(d.open),
           high: parseFloat(d.high),
           low: parseFloat(d.low),
           close: parseFloat(d.close),
           volume: parseFloat(d.volume || 0),
-        }))
-        .sort((a, b) => a.time - b.time)
-        .filter(
-          (d, idx, arr) =>
-            idx === arr.length - 1 || d.time !== arr[idx + 1].time,
-        );
+        };
+      }
+      parsedData.sort((a, b) => a.time - b.time);
+
+      const data = [];
+      let aggregateHigh = -Infinity;
+      let aggregateLow = Infinity;
+
+      for (let i = 0; i < parsedData.length; i++) {
+        const d = parsedData[i];
+        // Only keep the last tick for a given timestamp
+        if (i === parsedData.length - 1 || d.time !== parsedData[i + 1].time) {
+          data.push(d);
+          if (d.high > aggregateHigh) aggregateHigh = d.high;
+          if (d.low < aggregateLow) aggregateLow = d.low;
+        }
+      }
 
       candlesRef.current = data;
 
-      if (!Array.isArray(data) || !data.length) return;
+      if (!data.length) {
+        setMainChartLoading(false);
+        toast.error(`No historical data found for ${symbolFromResponse}`);
+        return;
+      }
 
       const lastPoint = data[data.length - 1];
-      const aggregateHigh = Math.max(...data.map((d) => d.high));
-      const aggregateLow = Math.min(...data.map((d) => d.low));
 
       setDetailsList((prev) => {
         const existingIdx = prev.findIndex(
@@ -1654,7 +1669,6 @@ json.dumps(result, default=json_default)
         return;
       }
 
-      setMainChartLoading(false);
       if (seriesRef.current) {
         try {
           chartRef.current.removeSeries(seriesRef.current);
@@ -1680,15 +1694,7 @@ json.dumps(result, default=json_default)
             BarSeries,
             chartSeriesStyles.bar,
           );
-          seriesRef.current.setData(
-            data.map((d) => ({
-              time: d.time,
-              open: d.open,
-              high: d.high,
-              low: d.low,
-              close: d.close,
-            })),
-          );
+          seriesRef.current.setData(data);
           fetchStrategyMarkers();
           break;
         case "area":
@@ -1746,8 +1752,9 @@ json.dumps(result, default=json_default)
             chartSeriesStyles.candlestick,
           );
           seriesRef.current.setData(data);
-          seriesReadyRef.current = true;
       }
+      
+      seriesReadyRef.current = true;
 
       if (lastDeployedMarkersRef.current && lastDeployedMarkersRef.current.length > 0 && seriesRef.current) {
         if (!customScriptMarkersRef.current) {
@@ -1789,6 +1796,9 @@ json.dumps(result, default=json_default)
         }
 
         chartRef.current?.timeScale().fitContent();
+        
+        // Remove loader ONLY after chart is fully rendered and fit to content
+        setMainChartLoading(false);
       }, 150);
     },
     handleHistoricalError: (err) => {
@@ -2339,6 +2349,10 @@ json.dumps(result, default=json_default)
                           <div
                             className="d-flex align-items-center gap-1"
                             ref={ohlcvDisplayRef}
+                            style={{
+                              opacity: currentCandleRef.current ? 1 : 0,
+                              transition: "opacity 0.2s ease-in-out",
+                            }}
                           >
                             {SINGLE_VALUE_CHARTS.includes(chartType) ? (
                               <span
@@ -2445,7 +2459,12 @@ json.dumps(result, default=json_default)
                         </div>
 
                         <div
-                          style={{ display: "flex", gap: "10px" }}
+                          style={{
+                            display: "flex",
+                            gap: "8px",
+                            opacity: currentCandleRef.current ? 1 : 0,
+                            transition: "opacity 0.2s ease-in-out",
+                          }}
                           ref={actionButtonsRef}
                         >
                           <button

@@ -128,7 +128,7 @@ const Overview = ({ selectedCurrency }) => {
   const { emit } = useSocket({
     handleLiveTick: (payload) => {
       // payload from strategyLiveTick
-      console.log(`[Overview Response] Event: ${EVENTS.OVERVIEW.RESPONSE}`, "Payload:", payload);
+      // console.log(`[Overview Response] Event: ${EVENTS.OVERVIEW.RESPONSE}`, "Payload:", payload);
       const symbol = payload?.symbol || payload?.raw?.tradingSymbol || payload?.name;
       const targetSymbol = selectedCurrency?.name || selectedCurrency?.symbol;
       if (String(symbol) !== String(targetSymbol)) return;

@@ -156,12 +156,12 @@ export default function ChartHeader({
         {/* Timeframe select */}
         <div title={timeframeValue}>
           <select
-            value={timeframeValue || "1m"}
+            value={timeframeValue || "5m"}
             onChange={(e) => setTimeframeValue(e.target.value)}
             style={d.select}
           >
-            {!timeframe && <option value="1m">1 Minute</option>}
-            {timeframe && Object.keys(timeframe).length === 0 && <option value="1m">1 Minute</option>}
+            {!timeframe && <option value="5m">5 Minute</option>}
+            {timeframe && Object.keys(timeframe).length === 0 && <option value="5m">5 Minute</option>}
             {timeframe && Object.entries(timeframe)?.map(([group, items]) => (
               <optgroup key={group} label={group?.toUpperCase()} style={{ background: "var(--bg-secondary)" }}>
                 {items?.map((item) => (

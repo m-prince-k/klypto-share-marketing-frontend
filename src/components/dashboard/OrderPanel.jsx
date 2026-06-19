@@ -204,17 +204,16 @@ const OrderPanel = ({
   // ── 1. Socket: master watchlist + live ticks ──
   const { emit } = useSocket({
     handleWatchlistResponse: (data) => {
+      const payload = data?.data || data;
       let equity = [], futures = [], options = [], indices = [];
       
-      if (Array.isArray(data)) {
-         equity = data.map(i => ({...i, category: "EQ"}));
-      } else if (Array.isArray(data?.data)) {
-         equity = data.data.map(i => ({...i, category: "EQ"}));
-      } else {
-        equity = (data?.data?.equity || []).map((i) => ({ ...i, category: "EQ" }));
-        futures = (data?.data?.futures || []).map((i) => ({ ...i, category: "FUT" }));
-        options = (data?.data?.trendingOptions || []).map((i) => ({ ...i, category: "OPT" }));
-        indices = (data?.data?.indices || []).map((i) => ({ ...i, category: "IDX" }));
+      if (Array.isArray(payload)) {
+         equity = payload.map(i => ({...i, category: "EQ"}));
+      } else if (payload) {
+         equity = (payload.equity || []).map((i) => ({ ...i, category: "EQ" }));
+         futures = (payload.futures || []).map((i) => ({ ...i, category: "FUT" }));
+         options = (payload.trendingOptions || []).map((i) => ({ ...i, category: "OPT" }));
+         indices = (payload.indices || []).map((i) => ({ ...i, category: "IDX" }));
       }
       
       setStocks([...indices, ...equity, ...futures, ...options]);

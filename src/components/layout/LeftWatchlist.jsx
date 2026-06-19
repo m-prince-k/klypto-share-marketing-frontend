@@ -13,18 +13,16 @@ const LeftWatchlist = ({ onClose, setSelectedCurrency }) => {
 
   const { emit } = useSocket({
     handleWatchlistResponse: (data) => {
-      // Handle both nested {data: {equity: ...}} and flat array structures
+      const payload = data?.data || data;
       let equity = [], futures = [], options = [], indices = [];
       
-      if (Array.isArray(data)) {
-         equity = data.map(item => ({...item, category: "EQ"}));
-      } else if (Array.isArray(data?.data)) {
-         equity = data.data.map(item => ({...item, category: "EQ"}));
-      } else {
-         equity = (data?.data?.equity || []).map((item) => ({ ...item, category: "EQ" }));
-         futures = (data?.data?.futures || []).map((item) => ({ ...item, category: "FUT" }));
-         options = (data?.data?.trendingOptions || []).map((item) => ({ ...item, category: "OPT" }));
-         indices = (data?.data?.indices || []).map((item) => ({ ...item, category: "IDX" }));
+      if (Array.isArray(payload)) {
+         equity = payload.map(item => ({...item, category: "EQ"}));
+      } else if (payload) {
+         equity = (payload.equity || []).map((item) => ({ ...item, category: "EQ" }));
+         futures = (payload.futures || []).map((item) => ({ ...item, category: "FUT" }));
+         options = (payload.trendingOptions || []).map((item) => ({ ...item, category: "OPT" }));
+         indices = (payload.indices || []).map((item) => ({ ...item, category: "IDX" }));
       }
 
       const combined = [...indices, ...equity, ...futures, ...options];

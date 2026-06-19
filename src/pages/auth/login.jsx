@@ -64,24 +64,24 @@ export default function Login() {
         localStorage.setItem("session", JSON.stringify(sessionData));
       else sessionStorage.setItem("session", JSON.stringify(sessionData));
 
-      Swal.fire({
+      await Swal.fire({
         icon: "success",
         title: "Login Successful",
         text: "Welcome back!",
-        timer: 1500,
-        showConfirmButton: false,
+        showConfirmButton: true,
+        confirmButtonText: "Okay",
       });
       navigate("/");
     } catch (error) {
       const message =
         error?.response?.data?.message || error.message || "Login failed";
       console.error("Login error:", error);
-      Swal.fire({
+      await Swal.fire({
         icon: "error",
         title: "Login Failed",
         text: message,
-        timer: 1500,
-        showConfirmButton: false,
+        showConfirmButton: true,
+        confirmButtonText: "Okay",
       });
     } finally {
       setLoading(false);
@@ -186,6 +186,19 @@ export default function Login() {
       marginBottom: 20,
     },
     checkLabel: { fontSize: "0.8rem", color: "var(--text-secondary)", cursor: "pointer" },
+    signupRow: {
+      textAlign: "center",
+      marginTop: 20,
+      fontSize: "0.8rem",
+      color: "var(--text-secondary)",
+    },
+    signupLink: {
+      color: "var(--accent-color)",
+      fontWeight: 600,
+      cursor: "pointer",
+      textDecoration: "none",
+      marginLeft: 4,
+    },
   };
 
   return (
@@ -307,6 +320,17 @@ export default function Login() {
             {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>
+
+        {/* Signup link */}
+        <div style={s.signupRow}>
+          Don't have an account?
+          <span
+            style={s.signupLink}
+            onClick={() => navigate("/signup")}
+          >
+            Sign up
+          </span>
+        </div>
       </div>
     </div>
   );
