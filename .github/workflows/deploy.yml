@@ -36,3 +36,8 @@ jobs:
           protocol: ftps
           local-dir: ./dist/
           server-dir: /public_html/
+          dangerous-clean-slate: false
+          exclude: |
+            **/.git*
+            **/.git*/**
+            .htaccess
