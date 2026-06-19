@@ -7,7 +7,8 @@ const getUserId = () => {
   return user?.id || user?._id || "123";
 };
 
-const socket = io("http://192.168.1.7:5000", {
+// 🔹 Backend Connection
+const socket = io(import.meta.env.VITE_API_URL, {
   transports: ["websocket", "polling"],
   reconnection: true,
 });
@@ -17,7 +18,7 @@ let strategySocketInstance = null;
 
 export const getStrategySocket = () => {
   if (!strategySocketInstance) {
-    strategySocketInstance = io("http://192.168.1.7:5000", {
+    strategySocketInstance = io(import.meta.env.VITE_STRATEGY_API_URL, {
       query: { userId: getUserId() },
       transports: ["websocket", "polling"],
       reconnection: true,
@@ -35,5 +36,5 @@ export const reconnectSocket = () => {
 
 console.log("SOCKET FILE LOADED");
 
-export const SOCKET_URL = "http://192.168.1.6:3000";
+export const SOCKET_URL = import.meta.env.VITE_METADATA_API_URL || "http://192.168.1.6:3000";
 export default socket;

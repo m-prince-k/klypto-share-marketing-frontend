@@ -26,7 +26,7 @@ const LeftWatchlist = ({ onClose, setSelectedCurrency }) => {
       }
 
       const combined = [...indices, ...equity, ...futures, ...options];
-
+      console.log("LeftWatchlist mapped stocks count:", combined.length);
       setStocksData(combined);
       setIsLoading(false);
     },
@@ -244,9 +244,11 @@ const LeftWatchlist = ({ onClose, setSelectedCurrency }) => {
         ) : (
           <AutoSizer>
             {({ height, width }) => {
+              console.log("AutoSizer dimensions:", height, width);
               const filteredStocks = stocksData.filter((s) =>
                 (s.name || s.symbol || "").toLowerCase().includes(searchTerm.toLowerCase()),
               );
+              console.log("Filtered stocks length:", filteredStocks.length);
 
               return (
                 <List

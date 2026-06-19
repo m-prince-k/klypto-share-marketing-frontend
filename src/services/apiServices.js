@@ -3,9 +3,7 @@ import { getToken } from "../pages/auth/protected";
 
 // 🔹 Create axios instance
 const api = axios.create({
-  // baseURL: "https://loiteringly-homeliest-breana.ngrok-free.dev",
-  baseURL: "http://192.168.1.7:5000", // change to your API
-  // baseURL: "http://localhost:9000", // change to your API
+  baseURL: import.meta.env.VITE_API_URL,
 
   timeout: 600000, // 1 min
   headers: {
@@ -19,6 +17,11 @@ api.interceptors.request.use((config) => {
 
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  // Route strategy endpoints to the dedicated strategy backend
+  if (config.url && config.url.includes("/api/strategy")) {
+    config.baseURL = import.meta.env.VITE_STRATEGY_API_URL || import.meta.env.VITE_API_URL;
   }
   
   if (config.url.includes("scanner-dashboard")) {

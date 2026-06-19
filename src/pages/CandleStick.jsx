@@ -160,7 +160,8 @@ plot_markers(markers)`
       setIsDetailsOpen(false);
       if (activeTab === "Alerts") setActiveTab("Chart");
 
-      const resp = await apiService.get("http://localhost:3000/api/predictResult");
+      const apiUrl = import.meta.env.VITE_METADATA_API_URL || "http://localhost:3000";
+      const resp = await apiService.get(`${apiUrl}/api/predictResult`);
       console.log("predictResult API Raw Response:", resp);
       
       const data = Array.isArray(resp) ? resp : (resp?.data || []);
