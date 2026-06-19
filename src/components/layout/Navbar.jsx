@@ -482,9 +482,9 @@ const Navbar = ({ setSelectedCurrency, predictCount = 0 }) => {
       <div style={styles.rightSection}>
         <div style={styles.navLinks}>
           {[
-            "Markets",
+            // "Markets",
             "TradeOne",
-            "Portfolio",
+            // "Portfolio",
             "Orders",
             "Positions",
             "Tools",

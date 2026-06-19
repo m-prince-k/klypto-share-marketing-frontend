@@ -106,9 +106,9 @@ export default function Candlestick() {
   const { matchedCoins, addAlert, clearAllCoins, scanner, removeCoin } =
     useAlerts();
 
-  const [isWatchlistOpen, setIsWatchlistOpen] = useState(false);
+  const [isWatchlistOpen, setIsWatchlistOpen] = useState(true);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-  const [isDepthOpen, setIsDepthOpen] = useState(true);
+  const [isDepthOpen, setIsDepthOpen] = useState(false);
   const [isPredicting, setIsPredicting] = useState(false);
   const [predictResultData, setPredictResultData] = useState([]);
   const [detailsList, setDetailsList] = useState([]);
@@ -1121,15 +1121,21 @@ json.dumps(result, default=json_default)
     const newVisibility = !currentVisible;
     const seriesGroup = indicatorSeriesRef.current?.[indicator];
     if (seriesGroup) {
-      Object.values(seriesGroup).forEach((series) => {
-        if (series?.applyOptions) {
-          series.applyOptions({ visible: newVisibility });
-        }
-      });
-      if (seriesGroup._priceLines) {
-        Object.values(seriesGroup._priceLines).forEach((line) => {
-          line?.applyOptions({ visible: newVisibility });
+      if (typeof seriesGroup.applyOptions === 'function') {
+        seriesGroup.applyOptions({ visible: newVisibility });
+      } else {
+        Object.values(seriesGroup).forEach((series) => {
+          if (series?.applyOptions) {
+            series.applyOptions({ visible: newVisibility });
+          }
         });
+        if (seriesGroup._priceLines) {
+          Object.values(seriesGroup._priceLines).forEach((line) => {
+            if (line?.applyOptions) {
+               line.applyOptions({ visible: newVisibility });
+            }
+          });
+        }
       }
     }
     setIndicatorVisibility((prev) => ({
@@ -1897,6 +1903,12 @@ json.dumps(result, default=json_default)
         }
         if (tickTime > 10000000000) tickTime = Math.floor(tickTime / 1000);
         if (!Number.isFinite(tickTime)) return;
+
+        // Block ticks after 3:30 PM IST (930 minutes)
+        const dateObj = new Date(tickTime * 1000);
+        const istTime = new Date(dateObj.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+        const currentMinutes = istTime.getHours() * 60 + istTime.getMinutes();
+        if (currentMinutes > 930) return;
 
         const adjustedTime = tickTime + IST_OFFSET;
         const normalizedTime =
@@ -2732,10 +2744,10 @@ json.dumps(result, default=json_default)
                                     <button
                                       className="ind-btn"
                                       title="Source Code"
-                                      onClick={() => {
-                                        setActiveSourceIndicator(type);
-                                        setShowSourcePanel(true);
-                                      }}
+                                      // onClick={() => {
+                                      //   setActiveSourceIndicator(type);
+                                      //   setShowSourcePanel(true);
+                                      // }}
                                     >
                                       <FaCode size={15} />
                                     </button>
@@ -3011,11 +3023,11 @@ json.dumps(result, default=json_default)
             </div>
           </div>
         </div>
-        <SourceCodePanel
+        {/* <SourceCodePanel
           show={showSourcePanel}
           indicator={activeSourceIndicator}
           onClose={() => setShowSourcePanel(false)}
-        />
+        /> */}
       </section>
       <IndicatorPropertyDialog
         setIndicatorProperty={setIndicatorProperty}

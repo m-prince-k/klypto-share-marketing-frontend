@@ -102,7 +102,7 @@ export default function Signup() {
         showConfirmButton: true,
         confirmButtonText: "Okay",
       });
-      navigate("/candleStick");
+      navigate("/");
     } catch (error) {
       const message =
         error.response?.data?.message || error.message || "Signup failed";
@@ -230,6 +230,37 @@ export default function Signup() {
   return (
     <div style={s.page}>
       <div style={s.card}>
+        {/* PhoneInput Dark Theme Styles */}
+        <style>{`
+          .react-tel-input .flag-dropdown {
+            background-color: var(--bg-secondary) !important;
+            border-color: var(--border-color) !important;
+          }
+          .react-tel-input .selected-flag {
+            background-color: transparent !important;
+          }
+          .react-tel-input .selected-flag:hover,
+          .react-tel-input .selected-flag:focus {
+            background-color: var(--bg-primary) !important;
+          }
+          .react-tel-input .country-list {
+            background-color: var(--bg-primary) !important;
+            color: #f3f4f6 !important;
+          }
+          .react-tel-input .country-list .country:hover,
+          .react-tel-input .country-list .country.highlight {
+            background-color: var(--bg-secondary) !important;
+          }
+          .react-tel-input .country-list .search {
+            background-color: var(--bg-primary) !important;
+            color: #f3f4f6 !important;
+          }
+          .react-tel-input .country-list .search-box {
+            background-color: var(--bg-secondary) !important;
+            color: #f3f4f6 !important;
+            border: 1px solid var(--border-color) !important;
+          }
+        `}</style>
         {/* Logo */}
         <div style={s.logoWrap}>
           <svg

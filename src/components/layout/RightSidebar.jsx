@@ -46,7 +46,7 @@ const RightSidebar = ({
     { id: 'details', icon: <FiBriefcase size={20} />, label: "Details", active: isDetailsOpen },
     { id: 'alerts', icon: <FiAlignLeft size={20} />, label: "Alerts" ,active: isAlertsOpen},
     { id: 'options', icon: <BsLink45Deg size={20} />, label: "Option\nChain" },
-    { id: 'more', icon: <FiMoreVertical size={20} />, label: "More" },
+    // { id: 'more', icon: <FiMoreVertical size={20} />, label: "More" },
   ];
 
   return (
@@ -61,7 +61,9 @@ const RightSidebar = ({
           onMouseEnter={(e) => { if (!item.active) e.currentTarget.style.color = "var(--text-primary)"; }}
           onMouseLeave={(e) => { if (!item.active) e.currentTarget.style.color = "var(--text-secondary)"; }}
           onClick={() => {
-            if (item.id === 'watchlist' && toggleWatchlist) {
+            if (item.id === 'options') {
+              window.open('/optionchain', '_blank');
+            } else if (item.id === 'watchlist' && toggleWatchlist) {
               toggleWatchlist();
             } else if (item.id === 'details' && toggleDetails) {
               toggleDetails();

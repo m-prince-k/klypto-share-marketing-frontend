@@ -4,7 +4,12 @@ import { FaCode, FaLaptopCode } from "react-icons/fa6";
 import { FiMaximize, FiZap } from "react-icons/fi";
 import { SiVitest } from "react-icons/si";
 
-const ChartTabs = ({ activeTab, setActiveTab, onCodeClick, onStrategyClick }) => {
+const ChartTabs = ({
+  activeTab,
+  setActiveTab,
+  onCodeClick,
+  onStrategyClick,
+}) => {
   const navigate = useNavigate();
   const styles = {
     container: {
@@ -77,7 +82,7 @@ const ChartTabs = ({ activeTab, setActiveTab, onCodeClick, onStrategyClick }) =>
     },
   };
 
-  const tabs = ["Chart", "Overview", "Option Chain","OI Analytics"];
+  const tabs = ["Chart", "Overview", "Option Chain", "OI Analytics"];
 
   return (
     <div style={styles.container}>
@@ -100,7 +105,17 @@ const ChartTabs = ({ activeTab, setActiveTab, onCodeClick, onStrategyClick }) =>
       <div style={styles.actionsGroup}>
         <button
           onClick={onStrategyClick}
-          style={{...styles.actionsGroup, borderRadius: "4px", border: "1px solid #999", padding: "6px 12px", color: "#999", fontSize: "0.8rem", fontWeight: "600", cursor: "pointer", transition: "all 0.2s" }}
+          style={{
+            ...styles.actionsGroup,
+            borderRadius: "4px",
+            border: "1px solid #999",
+            padding: "6px 12px",
+            color: "#999",
+            fontSize: "0.8rem",
+            fontWeight: "600",
+            cursor: "pointer",
+            transition: "all 0.2s",
+          }}
           onMouseEnter={(e) => {
             e.currentTarget.style.backgroundColor = "rgba(124, 58, 237, 0.1)";
           }}

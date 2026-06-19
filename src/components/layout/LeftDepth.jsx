@@ -70,7 +70,7 @@ const LeftDepth = ({ onClose, predictResults, setSelectedCurrency, isPredicting 
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <span>Results</span>
+        <span>Strategy Results</span>
         <FiX style={{ cursor: "pointer" }} onClick={onClose} />
       </div>
       <div className="custom-scrollbar" style={styles.listContainer}>

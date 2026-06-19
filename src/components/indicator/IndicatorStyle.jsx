@@ -1,4 +1,5 @@
 import { Row, Col, Form } from "react-bootstrap";
+import { createPortal } from "react-dom";
 import { useState, useRef, useEffect } from "react";
 import ColorPalettePanel from "./ColorPalettePanel";
 import { getRowsByIndicator } from "../../util/common";
@@ -20,6 +21,7 @@ export default function IndicatorStyle({
   const rows = getRowsByIndicator(normalizedType, maType, indicatorConfigs);
 
   const [activePalette, setActivePalette] = useState(null);
+  const [palettePos, setPalettePos] = useState({ top: 0, left: 0 });
   const paletteRef = useRef(null);
 
   /* ================= UPDATE FUNCTION ================= */
@@ -141,7 +143,7 @@ export default function IndicatorStyle({
               transition: "background 0.15s ease",
               flexWrap: "nowrap",
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#f5f7fa")}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-secondary)")}
             onMouseLeave={(e) =>
               (e.currentTarget.style.background = "transparent")
             }
@@ -156,6 +158,7 @@ export default function IndicatorStyle({
             >
               {!row.parent ? (
                 <Form.Check
+                  id={`check-${row.key}`}
                   type="checkbox"
                   checked={
                     selectedStyle?.[row.key]?.visible ?? row.visible ?? true
@@ -166,7 +169,7 @@ export default function IndicatorStyle({
                       style={{
                         fontSize: "14.5px",
                         fontWeight: 600,
-                        color: "var(--bg-primary)",
+                        color: "var(--text-primary)",
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
@@ -183,7 +186,7 @@ export default function IndicatorStyle({
                   style={{
                     fontSize: "14.5px",
                     fontWeight: 600,
-                    color: "var(--bg-primary)",
+                    color: "var(--text-primary)",
                   }}
                 >
                   {row.label}
@@ -202,6 +205,8 @@ export default function IndicatorStyle({
                   <div
                     onClick={(e) => {
                       e.stopPropagation();
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setPalettePos({ top: rect.bottom + 8, left: rect.left });
                       setActivePalette(
                         activePalette === row.key ? null : row.key,
                       );
@@ -234,14 +239,14 @@ export default function IndicatorStyle({
                     }}
                   />
 
-                  {activePalette === row.key && (
+                  {activePalette === row.key && createPortal(
                     <div
                       ref={paletteRef}
                       style={{
-                        position: "absolute",
-                        top: 42,
-                        left: 0,
-                        zIndex: 9999,
+                        position: "fixed",
+                        top: palettePos.top,
+                        left: palettePos.left,
+                        zIndex: 99999,
                         borderRadius: 10,
                         boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
                         overflow: "hidden",
@@ -276,7 +281,8 @@ export default function IndicatorStyle({
                           }
                         }}
                       />
-                    </div>
+                    </div>,
+                    document.body
                   )}
                 </>
               )}
@@ -302,10 +308,10 @@ export default function IndicatorStyle({
                     fontWeight: 500,
                     padding: "2px 10px",
                     borderRadius: 7,
-                    border: "1.5px solid var(--text-primary)",
+                    border: "1px solid var(--border-color)",
                     textAlign: "left",
-                    color: "var(--bg-primary)",
-                    background: "#fff",
+                    color: "var(--text-primary)",
+                    background: "var(--bg-secondary)",
                     boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
                     transition: "border-color 0.15s, box-shadow 0.15s",
                     outline: "none",
@@ -316,7 +322,7 @@ export default function IndicatorStyle({
                       "0 0 0 3px rgba(41,98,255,0.12)";
                   }}
                   onBlur={(e) => {
-                    e.currentTarget.style.borderColor = "var(--text-primary)";
+                    e.currentTarget.style.borderColor = "var(--border-color)";
                     e.currentTarget.style.boxShadow =
                       "0 1px 2px rgba(0,0,0,0.06)";
                   }}

@@ -67,6 +67,7 @@ export const ChartProprties = {
       top: 0.2,
       bottom: 0.2,
     },
+    borderColor: "rgba(120, 123, 134, 0.4)",
   },
   grid: {
     vertLines: {

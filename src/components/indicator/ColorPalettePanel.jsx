@@ -126,9 +126,9 @@ export default function ColorPalettePanel({
   };
 
   return (
-    <div style={{ width: 300, padding: 14, background: "#f7f7f7", borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.15)" }}>
+    <div style={{ width: 300, padding: 14, background: "var(--bg-secondary, #f7f7f7)", borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.15)", color: "var(--text-primary)" }}>
       {/* PREVIEW BOX */}
-      <div style={{ height: 40, background: "#fff", borderRadius: 6, marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #ddd" }}>
+      <div style={{ height: 40, background: "var(--bg-primary, #fff)", borderRadius: 6, marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--border-color, #ddd)" }}>
         {mode === "line" ? (
           <div style={{ width: 80, borderTop: lineStyle === 2 ? `${width}px dashed ${previewColor}` : lineStyle === 1 ? `${width}px dotted ${previewColor}` : `${width}px solid ${previewColor}` }} />
         ) : (
@@ -139,7 +139,7 @@ export default function ColorPalettePanel({
       {/* COLOR GRID */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(10,1fr)", gap: 6, marginBottom: 12 }}>
         {COLORS.map((c, i) => (
-          <div key={i} onClick={() => selectColor(c)} style={{ width: 22, height: 22, borderRadius: 4, background: c, cursor: "pointer", border: c.toLowerCase() === color.toLowerCase() ? "2px solid #4c8bf5" : "1px solid #ccc" }} />
+          <div key={i} onClick={() => selectColor(c)} style={{ width: 22, height: 22, borderRadius: 4, background: c, cursor: "pointer", border: c.toLowerCase() === color.toLowerCase() ? "2px solid #4c8bf5" : "1px solid var(--border-color, #ccc)" }} />
         ))}
       </div>
 
@@ -159,8 +159,8 @@ export default function ColorPalettePanel({
             <div style={{ fontSize: 13, marginBottom: 6 }}>Thickness</div>
             <div style={{ display: "flex" }}>
               {[1, 2, 3, 4].map((w) => (
-                <div key={w} onClick={() => updateLine({ width: w })} style={{ flex: 1, height: 36, background: width === w ? "#2c2c2e" : "#e9ecef", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                  <div style={{ height: w, width: 28, background: width === w ? "#fff" : "#333" }} />
+                <div key={w} onClick={() => updateLine({ width: w })} style={{ flex: 1, height: 36, background: width === w ? "var(--bg-primary, #2c2c2e)" : "transparent", border: "1px solid var(--border-color, #e9ecef)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                  <div style={{ height: w, width: 28, background: width === w ? "var(--text-primary, #fff)" : "var(--text-secondary, #333)" }} />
                 </div>
               ))}
             </div>
@@ -171,8 +171,8 @@ export default function ColorPalettePanel({
             <div style={{ fontSize: 13, marginBottom: 6 }}>Line style</div>
             <div style={{ display: "flex" }}>
               {[{ v: 0 }, { v: 2 }, { v: 1 }].map(({ v }) => (
-                <div key={v} onClick={() => updateLine({ lineStyle: v })} style={{ flex: 1, height: 36, background: lineStyle === v ? "#2c2c2e" : "#e9ecef", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                  <div style={{ width: 30, borderTop: v === 2 ? "2px dashed #333" : v === 1 ? "2px dotted #333" : "2px solid #333" }} />
+                <div key={v} onClick={() => updateLine({ lineStyle: v })} style={{ flex: 1, height: 36, background: lineStyle === v ? "var(--bg-primary, #2c2c2e)" : "transparent", border: "1px solid var(--border-color, #e9ecef)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                  <div style={{ width: 30, borderTop: v === 2 ? "2px dashed " + (lineStyle === v ? "var(--text-primary, #fff)" : "var(--text-secondary, #333)") : v === 1 ? "2px dotted " + (lineStyle === v ? "var(--text-primary, #fff)" : "var(--text-secondary, #333)") : "2px solid " + (lineStyle === v ? "var(--text-primary, #fff)" : "var(--text-secondary, #333)") }} />
                 </div>
               ))}
             </div>

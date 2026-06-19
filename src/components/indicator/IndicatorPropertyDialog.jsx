@@ -2363,7 +2363,7 @@ export default function IndicatorPropertyDialog({
       show={indicatorProperty}
       onHide={() => setIndicatorProperty(false)}
       centered
-      contentClassName="border-0 shadow-lg"
+      contentClassName="border-0 shadow-lg modal-dark-theme"
       style={{ borderRadius: 16 }}
     >
       <Modal.Header closeButton className="border-0 pb-0 px-4 pt-4">
@@ -2371,7 +2371,7 @@ export default function IndicatorPropertyDialog({
           style={{
             fontSize: 17,
             fontWeight: 700,
-            color: "var(--bg-primary)",
+            color: "var(--text-primary)",
             letterSpacing: "-0.2px",
           }}
         >
@@ -2444,8 +2444,31 @@ export default function IndicatorPropertyDialog({
 
         {/* Inline style overrides for Bootstrap nav-tabs */}
         <style>{`
+      .modal-dark-theme {
+        background-color: var(--bg-primary) !important;
+        color: var(--text-primary) !important;
+        border: 1px solid var(--border-color) !important;
+      }
+      .modal-dark-theme .modal-header {
+        border-bottom: 1px solid var(--border-color) !important;
+      }
+      .modal-dark-theme .modal-header .btn-close {
+        filter: invert(1) grayscale(100%) brightness(200%);
+      }
+      .modal-dark-theme .form-control, .modal-dark-theme .form-select {
+        background-color: var(--bg-secondary) !important;
+        color: var(--text-primary) !important;
+        border: 1px solid var(--border-color) !important;
+      }
+      .modal-dark-theme .form-control:focus, .modal-dark-theme .form-select:focus {
+        border-color: var(--accent-color) !important;
+        box-shadow: none !important;
+      }
+      .modal-dark-theme .form-label, .modal-dark-theme .form-check-label {
+        color: var(--text-secondary) !important;
+      }
       .nav-tabs {
-        border-bottom: 1.5px solid #f0f0f0 !important;
+        border-bottom: 1.5px solid var(--border-color) !important;
       }
       .nav-tabs .nav-link {
         border: none !important;
@@ -2460,12 +2483,12 @@ export default function IndicatorPropertyDialog({
         transition: color 0.15s ease, border-color 0.15s ease !important;
       }
       .nav-tabs .nav-link:hover {
-        color: var(--border-color) !important;
+        color: var(--text-primary) !important;
         border-bottom-color: var(--text-primary) !important;
       }
       .nav-tabs .nav-link.active {
-        color: var(--bg-primary) !important;
-        border-bottom: 2.5px solid var(--bg-primary) !important;
+        color: var(--accent-color) !important;
+        border-bottom: 2.5px solid var(--accent-color) !important;
         background: transparent !important;
       }
       .tab-content {
@@ -2496,9 +2519,10 @@ export default function IndicatorPropertyDialog({
             fontWeight: 600,
             borderRadius: 8,
             padding: "8px 20px",
-            border: "1.5px solid #e5e7eb",
-            color: "var(--border-color)",
-            background: "#f9fafb",
+            padding: "8px 20px",
+            border: "1px solid var(--border-color)",
+            color: "var(--text-secondary)",
+            background: "var(--bg-secondary)",
           }}
         >
           Cancel
@@ -2512,7 +2536,8 @@ export default function IndicatorPropertyDialog({
             fontWeight: 600,
             borderRadius: 8,
             padding: "8px 20px",
-            background: "var(--bg-primary)",
+            background: "var(--accent-color)",
+            color: "#fff",
             border: "none",
             boxShadow: "0 1px 4px rgba(0,0,0,0.18)",
           }}

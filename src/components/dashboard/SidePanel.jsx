@@ -20,7 +20,8 @@ const SidePanel = ({ stock, expiry }) => {
     setLocalSocket(socket);
 
     const onConnect = () => console.log("[SidePanel] Data socket connected");
-    const onDisconnect = () => console.log("[SidePanel] Data socket disconnected");
+    const onDisconnect = () =>
+      console.log("[SidePanel] Data socket disconnected");
 
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
