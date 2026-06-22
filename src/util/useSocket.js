@@ -57,7 +57,7 @@ const useSocket = (props = {}) => {
       },
       
       [EVENTS.CHART.LIVETICKS]: (tick) => {
-        // console.log(`[SOCKET] ${EVENTS.CHART.LIVETICKS} received:`, tick);
+        console.log(`[SOCKET] ${EVENTS.CHART.LIVETICKS} received:`, tick);
         if (propsRef.current.handleLiveTick) propsRef.current.handleLiveTick(tick);
         if (propsRef.current.handleAlertTick) propsRef.current.handleAlertTick({ type: EVENTS.CHART.LIVETICKS, data: tick });
       },
@@ -113,6 +113,7 @@ const useSocket = (props = {}) => {
     Object.keys(handlers).forEach((eventName) => {
       const wrappedHandler = (...args) => {
         try {
+          console.log(`[SOCKET EVENT] ${eventName} received:`, ...args);
           handlers[eventName](...args);
         } catch (error) {
           console.error(`[SOCKET ERROR] Event '${eventName}' threw an exception:`, error);
