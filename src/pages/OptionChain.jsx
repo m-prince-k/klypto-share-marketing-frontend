@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Container, Row, Col, Table, Form, Button, Pagination, Card, Badge, InputGroup, Spinner } from 'react-bootstrap';
-import { FaFilter, FaSort, FaSortUp, FaSortDown, FaCalendarAlt, FaUndo } from 'react-icons/fa';
+import { FaFilter, FaSort, FaSortUp, FaSortDown, FaCalendarAlt, FaUndo, FaChartLine, FaLayerGroup } from 'react-icons/fa';
 import apiService from '../services/apiServices';
 import { getStrategySocket } from '../services/websocket/socket';
 
 /* ─── Design tokens ──────────────────────────────────────────────────────── */
 const styles = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
   :root {
     --oc-bg:           var(--bg-primary);
@@ -20,17 +20,21 @@ const styles = `
     --oc-green:        var(--success-color);
     --oc-red:          var(--danger-color);
     --oc-text:         var(--text-primary);
-    --oc-radius:       12px;
-    --oc-radius-sm:    8px;
-    --oc-shadow:       0 2px 12px rgba(0,0,0,.3);
-    --oc-shadow-md:    0 4px 20px rgba(0,0,0,.4);
+    --oc-radius:       14px;
+    --oc-radius-sm:    9px;
+    --oc-shadow:       0 2px 14px rgba(0,0,0,.28), 0 1px 2px rgba(0,0,0,.18);
+    --oc-shadow-md:    0 8px 28px rgba(0,0,0,.32);
+    --oc-shadow-hover: 0 6px 22px rgba(127,119,221,.18);
   }
 
   /* Page shell */
   .oc-page {
-    background: var(--oc-bg);
+    background:
+      radial-gradient(circle at 0% 0%, rgba(127,119,221,.06), transparent 45%),
+      radial-gradient(circle at 100% 0%, rgba(59,130,246,.05), transparent 40%),
+      var(--oc-bg);
     min-height: 100vh;
-    padding: 28px 24px;
+    padding: 28px 24px 40px;
     font-family: 'Inter', sans-serif;
     color: var(--oc-text);
   }
@@ -40,13 +44,32 @@ const styles = `
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 24px;
+    margin-bottom: 22px;
+    gap: 16px;
+  }
+  .oc-header-icon-wrap {
+    width: 42px;
+    height: 42px;
+    border-radius: 11px;
+    background: linear-gradient(135deg, var(--oc-accent), #3B82F6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 17px;
+    box-shadow: 0 4px 14px rgba(127,119,221,.35);
+    flex-shrink: 0;
+  }
+  .oc-title-group {
+    display: flex;
+    align-items: center;
+    gap: 14px;
   }
   .oc-title {
-    font-size: 22px;
-    font-weight: 700;
+    font-size: 23px;
+    font-weight: 800;
     color: var(--oc-navy);
-    letter-spacing: -0.3px;
+    letter-spacing: -0.4px;
     margin: 0;
     line-height: 1.2;
   }
@@ -56,6 +79,35 @@ const styles = `
     margin: 3px 0 0;
     font-weight: 400;
   }
+  .oc-live-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(8,153,129,.10);
+    color: var(--oc-green);
+    border: 1px solid rgba(8,153,129,.25);
+    border-radius: 20px;
+    padding: 6px 13px;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    height: fit-content;
+  }
+  .oc-live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--oc-green);
+    box-shadow: 0 0 0 0 rgba(8,153,129,.7);
+    animation: oc-pulse 1.8s infinite;
+  }
+  @keyframes oc-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(8,153,129,.55); }
+    70%  { box-shadow: 0 0 0 6px rgba(8,153,129,0); }
+    100% { box-shadow: 0 0 0 0 rgba(8,153,129,0); }
+  }
 
   /* ── Filter card ── */
   .oc-filter-card {
@@ -63,16 +115,27 @@ const styles = `
     border-radius: var(--oc-radius);
     border: 1px solid var(--oc-border);
     box-shadow: var(--oc-shadow);
-    padding: 20px 24px;
+    padding: 22px 24px;
     margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .oc-filter-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, var(--oc-accent), #3B82F6, var(--oc-accent));
+    opacity: .85;
   }
   .oc-filter-label {
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.6px;
+    letter-spacing: 0.7px;
     color: var(--oc-muted);
-    margin-bottom: 6px;
+    margin-bottom: 7px;
     display: block;
   }
   .oc-select, .oc-date-input {
@@ -83,54 +146,68 @@ const styles = `
     border-radius: var(--oc-radius-sm) !important;
     background: var(--oc-bg) !important;
     color: var(--oc-text) !important;
-    transition: border-color .18s, box-shadow .18s !important;
+    transition: border-color .18s, box-shadow .18s, background .18s !important;
     box-shadow: none !important;
+  }
+  .oc-select:hover, .oc-date-input:hover {
+    border-color: rgba(127,119,221,.5) !important;
   }
   .oc-select:focus, .oc-date-input:focus {
     border-color: var(--oc-accent) !important;
-    box-shadow: 0 0 0 3px rgba(127,119,221,.13) !important;
+    box-shadow: 0 0 0 3px rgba(127,119,221,.15) !important;
   }
   .oc-input-icon {
-    background: var(--oc-bg) !important;
-    border: 1.5px solid var(--oc-border) !important;
-    border-right: none !important;
+    background: linear-gradient(135deg, var(--oc-accent), #3B82F6) !important;
+    border: none !important;
     border-radius: var(--oc-radius-sm) 0 0 var(--oc-radius-sm) !important;
-    color: var(--oc-muted) !important;
+    color: #fff !important;
     height: 42px !important;
     display: flex;
     align-items: center;
-    padding: 0 11px;
+    padding: 0 12px;
     cursor: pointer;
-    transition: color .18s;
+    transition: filter .18s;
   }
-  .oc-input-icon:hover { color: var(--oc-accent) !important; }
+  .oc-input-icon:hover { filter: brightness(1.12); }
   .oc-date-input {
     border-left: none !important;
     border-radius: 0 var(--oc-radius-sm) var(--oc-radius-sm) 0 !important;
+    position: relative;
+  }
+  .oc-date-input::-webkit-calendar-picker-indicator {
+    opacity: 0;
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    cursor: pointer;
   }
 
   /* Buttons */
   .oc-btn-apply {
     height: 42px;
-    background: var(--oc-accent) !important;
+    background: linear-gradient(135deg, var(--oc-accent), #3B82F6) !important;
     border: none !important;
     border-radius: var(--oc-radius-sm) !important;
     font-size: 13.5px !important;
-    font-weight: 600 !important;
+    font-weight: 700 !important;
     font-family: 'Inter', sans-serif !important;
     letter-spacing: 0.2px;
     color: #fff !important;
-    transition: background .18s ease, transform .1s ease, box-shadow .18s ease !important;
-    box-shadow: 0 2px 8px rgba(59, 130, 246, .25) !important;
+    transition: filter .18s ease, transform .12s ease, box-shadow .18s ease !important;
+    box-shadow: 0 3px 10px rgba(59, 130, 246, .3) !important;
   }
   .oc-btn-apply:hover {
-    background: #3B82F6 !important;
-    box-shadow: 0 4px 14px rgba(59, 130, 246, .4) !important;
-    transform: translateY(-1px);
+    filter: brightness(1.08);
+    box-shadow: 0 5px 16px rgba(59, 130, 246, .45) !important;
+    transform: translateY(-1.5px);
   }
   .oc-btn-apply:active {
     transform: translateY(0) !important;
     box-shadow: 0 2px 6px rgba(59, 130, 246, .3) !important;
+    filter: brightness(0.97);
   }
 
   .oc-btn-reset {
@@ -147,13 +224,13 @@ const styles = `
     align-items: center;
     justify-content: center;
     padding: 0 12px !important;
-    transition: border-color .18s ease, color .18s ease, background .18s ease, transform .1s ease !important;
+    transition: border-color .18s ease, color .18s ease, background .18s ease, transform .12s ease !important;
   }
   .oc-btn-reset:hover {
     border-color: #3B82F6 !important;
     color: #3B82F6 !important;
     background: rgba(59, 130, 246, .08) !important;
-    transform: translateY(-1px);
+    transform: translateY(-1.5px);
   }
   .oc-btn-reset:active {
     transform: translateY(0) !important;
@@ -175,6 +252,7 @@ const styles = `
     font-family: 'Inter', sans-serif;
     background: transparent !important;
     color: var(--oc-text) !important;
+    border-collapse: separate;
   }
   .oc-table td, .oc-table th {
     background-color: transparent !important;
@@ -186,37 +264,42 @@ const styles = `
   }
   .oc-table thead th {
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.55px;
+    letter-spacing: 0.6px;
     color: var(--oc-muted) !important;
-    padding: 13px 16px !important;
+    padding: 14px 16px !important;
     border: none !important;
     white-space: nowrap;
     cursor: pointer;
     user-select: none;
-    transition: color .15s;
+    transition: color .15s, background .15s;
+    position: sticky;
+    top: 0;
   }
-  .oc-table thead th:hover { color: var(--oc-accent) !important; }
+  .oc-table thead th:hover {
+    color: var(--oc-accent) !important;
+    background: var(--oc-accent-light) !important;
+  }
   .oc-table thead th .sort-wrap {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 5px;
+    gap: 6px;
   }
 
   .oc-table tbody tr {
     border-bottom: 1px solid var(--oc-border) !important;
-    transition: background .12s;
+    transition: background .15s, transform .1s;
     background-color: transparent !important;
   }
   .oc-table tbody tr:hover {
-    background: var(--oc-bg) !important;
+    background: var(--oc-accent-light) !important;
   }
   .oc-table tbody tr:last-child { border-bottom: none !important; }
 
   .oc-table td {
-    padding: 11px 16px !important;
+    padding: 12px 16px !important;
     border: none !important;
     vertical-align: middle !important;
     font-size: 13px;
@@ -231,47 +314,51 @@ const styles = `
   .oc-cell-date    { color: var(--oc-muted); font-size: 12.5px; }
   .oc-cell-symbol  { font-weight: 700; color: var(--oc-navy); font-size: 13.5px; letter-spacing: -0.2px; }
   .oc-cell-expiry  { color: var(--oc-muted); font-size: 12.5px; }
-  .oc-cell-strike  { font-weight: 600; color: var(--oc-navy); }
-  .oc-cell-high    { color: var(--oc-green); }
-  .oc-cell-low     { color: var(--oc-red); }
-  .oc-cell-close   { font-weight: 600; color: var(--oc-navy); }
-  .oc-cell-muted   { color: #5a5f7a; }
+  .oc-cell-strike  { font-weight: 700; color: var(--oc-navy); }
+  .oc-cell-high    { color: var(--oc-green); font-weight: 600; }
+  .oc-cell-low     { color: var(--oc-red); font-weight: 600; }
+  .oc-cell-close   { font-weight: 700; color: var(--oc-navy); }
+  .oc-cell-muted   { color: var(--oc-muted); }
 
   /* Type badge */
   .oc-badge-ce, .oc-badge-pe {
-    display: inline-block;
-    padding: 3px 10px;
-    border-radius: 5px;
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 11px;
+    border-radius: 6px;
     font-size: 11px;
     font-weight: 700;
     font-family: 'Inter', sans-serif;
     letter-spacing: 0.4px;
+    border: 1px solid transparent;
   }
   .oc-badge-ce {
-    background: rgba(8,153,129,.10);
+    background: rgba(8,153,129,.12);
     color: var(--oc-green);
+    border-color: rgba(8,153,129,.25);
   }
   .oc-badge-pe {
-    background: rgba(242,54,69,.10);
+    background: rgba(242,54,69,.12);
     color: var(--oc-red);
+    border-color: rgba(242,54,69,.25);
   }
 
   /* Empty state */
   .oc-empty {
-    padding: 60px 0;
+    padding: 64px 0;
     text-align: center;
     color: var(--oc-muted);
   }
   .oc-empty-icon {
-    font-size: 36px;
-    margin-bottom: 12px;
-    opacity: .35;
+    font-size: 38px;
+    margin-bottom: 14px;
+    opacity: .45;
   }
   .oc-empty h6 {
-    font-weight: 600;
-    color: #4a4f6a;
+    font-weight: 700;
+    color: var(--oc-text);
     margin-bottom: 4px;
-    font-size: 14px;
+    font-size: 14.5px;
   }
   .oc-empty p {
     font-size: 13px;
@@ -281,7 +368,7 @@ const styles = `
 
   /* ── Footer / Pagination ── */
   .oc-footer {
-    padding: 14px 20px;
+    padding: 15px 20px;
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
@@ -312,17 +399,22 @@ const styles = `
     color: var(--oc-text) !important;
     box-shadow: none !important;
     padding: 0 8px !important;
+    transition: border-color .18s !important;
+  }
+  .oc-select-rows:hover {
+    border-color: rgba(127,119,221,.5) !important;
   }
   .oc-total-badge {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    background: var(--oc-accent-light);
+    gap: 6px;
+    background: linear-gradient(135deg, var(--oc-accent-light), rgba(59,130,246,.15));
     color: var(--oc-accent);
+    border: 1px solid rgba(127,119,221,.25);
     border-radius: 20px;
-    padding: 4px 12px;
+    padding: 5px 13px;
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 700;
   }
 
   /* Pagination */
@@ -331,7 +423,7 @@ const styles = `
     border-radius: 7px !important;
     margin: 0 2px;
     font-size: 12.5px;
-    font-weight: 500;
+    font-weight: 600;
     color: var(--oc-muted) !important;
     padding: 5px 11px;
     transition: all .15s;
@@ -340,15 +432,16 @@ const styles = `
     font-family: 'Inter', sans-serif;
   }
   .oc-pagination .page-item.active .page-link {
-    background: var(--oc-accent) !important;
+    background: linear-gradient(135deg, var(--oc-accent), #3B82F6) !important;
     border-color: var(--oc-accent) !important;
     color: #fff !important;
-    box-shadow: 0 2px 8px rgba(127,119,221,.28) !important;
+    box-shadow: 0 3px 10px rgba(127,119,221,.32) !important;
   }
   .oc-pagination .page-item:not(.active):not(.disabled) .page-link:hover {
     background: var(--oc-accent-light) !important;
     border-color: var(--oc-accent) !important;
     color: var(--oc-accent) !important;
+    transform: translateY(-1px);
   }
   .oc-pagination .page-item.disabled .page-link {
     opacity: .35;
@@ -356,10 +449,26 @@ const styles = `
   }
 
   /* Sort icon colours */
-  .sort-icon-muted  { color: #c5c8d8; }
+  .sort-icon-muted  { color: var(--oc-border); }
   .sort-icon-active { color: var(--oc-accent); }
 
-  /* Light Scrollbar Styling */
+  /* Loading overlay */
+  .oc-loading-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background: color-mix(in srgb, var(--oc-surface) 75%, transparent);
+    backdrop-filter: blur(2px);
+    z-index: 10;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--oc-muted);
+  }
+
+  /* Scrollbar Styling */
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -372,7 +481,7 @@ const styles = `
     border-radius: 4px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #c0c4d6;
+    background: var(--oc-accent);
   }
 `;
 
@@ -562,10 +671,19 @@ const OptionChain = () => {
       <div className="oc-page">
         {/* Header */}
         <div className="oc-header">
-          <div>
-            <h2 className="oc-title">Option Chain Scanner</h2>
-            <p className="oc-subtitle">Filter, sort, and analyse historical options data</p>
+          <div className="oc-title-group">
+            <div className="oc-header-icon-wrap">
+              <FaLayerGroup />
+            </div>
+            <div>
+              <h2 className="oc-title">Option Chain Scanner</h2>
+              <p className="oc-subtitle">Filter, sort, and analyse historical options data</p>
+            </div>
           </div>
+          <span className="oc-live-pill">
+            <span className="oc-live-dot" />
+            Live
+          </span>
         </div>
 
         {/* Filters */}
@@ -638,12 +756,9 @@ const OptionChain = () => {
         {/* Table */}
         <div className="oc-table-card" style={{ position: 'relative' }}>
           {isLoading && (
-            <div style={{
-              position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              backgroundColor: 'rgba(255, 255, 255, 0.4)', zIndex: 10
-            }}>
-              <Spinner animation="border" variant="primary" />
+            <div className="oc-loading-overlay">
+              <Spinner animation="border" size="sm" style={{ color: 'var(--oc-accent)' }} />
+              Loading data…
             </div>
           )}
           <div className="table-responsive" style={{ filter: isLoading ? 'blur(3px)' : 'none', transition: 'filter 0.2s ease' }}>
@@ -683,7 +798,7 @@ const OptionChain = () => {
                   <tr>
                     <td colSpan="12">
                       <div className="oc-empty">
-                        <div className="oc-empty-icon">⛓️</div>
+                        <div className="oc-empty-icon"><FaChartLine /></div>
                         <h6>No records found</h6>
                         <p>Try adjusting your filters to see results.</p>
                       </div>

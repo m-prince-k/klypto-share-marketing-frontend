@@ -91,7 +91,7 @@ const spotPriceLinePlugin = {
   },
 };
 
-const OIAnalytics = () => {
+const OIAnalytics = ({ selectedCurrency }) => {
   const [theme, setTheme] = useState(
     document.documentElement.getAttribute("data-theme") || "dark",
   );
@@ -115,7 +115,7 @@ const OIAnalytics = () => {
   const [metrics, setMetrics] = useState({});
   const [loading, setLoading] = useState(true);
 
-  let currentSymbol = "";
+  const currentSymbol = selectedCurrency?.name || selectedCurrency?.symbol || "";
 
   useEffect(() => {
     if (!currentSymbol) return;
@@ -172,6 +172,7 @@ const OIAnalytics = () => {
     });
 
     const handleOptionChainData = (response) => {
+      console.log("[SOCKET EVENT] option-chain-data received:", response);
       setLoading(false);
       if (response && response.data && response.data.length > 0) {
         let chainData = response.data;

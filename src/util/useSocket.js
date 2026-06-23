@@ -113,7 +113,8 @@ const useSocket = (props = {}) => {
       EVENTS.OPTION_CHAIN?.LIST,
       EVENTS.OPTION_CHAIN?.GET,
       EVENTS.OPTION_CHAIN?.RESPONSE,
-      EVENTS.CHART?.LIVETICKS
+      EVENTS.CHART?.LIVETICKS,
+      EVENTS.OVERVIEW?.RESPONSE
     ];
 
     // Register all centralized handlers with try-catch wrapper

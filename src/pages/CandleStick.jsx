@@ -2950,7 +2950,7 @@ json.dumps(result, default=json_default)
                 }}
               >
                 {activeTab === "OI Analytics" && (
-                  <OIAnalytics />
+                  <OIAnalytics selectedCurrency={selectedCurrency} />
                 )}
               </div>
             </div>
