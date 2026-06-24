@@ -112,6 +112,10 @@ import SuperSmootherPlot from "./SuperSmoother/SUPERSMOOTHERPlot";
 import HealthyBoxPlot from "./HealthyBox/HealthyBoxPlot";
 import BodyDNAPlot from "./Body915DNA/BodyDNAPlot";
 import HMABoxPlot from "./HMA60BOX/HMABoxPlot";
+import SUPERSMOOTHERInput from "./SuperSmoother/SUPERSMOOTHERInput";
+import HealthyBoxInput from "./HealthyBox/HealthyBoxInput";
+import BodyDNAInput from "./Body915DNA/BodyDNAInput";
+import HMABoxInput from "./HMA60BOX/HMABoxInput";
 
 export const indicatorComponents = {
   VWAP: VWAPPlot,
@@ -235,6 +239,10 @@ export const indicatorInputs = {
   VWMA: VWMAInput,
   TMA: TMAInput,
   MA_RIBBON: MARibbonInput,
+   SUPERSMOOTHER: SUPERSMOOTHERInput,
+  HEALTHY_BOX: HealthyBoxInput,
+  BODY915DNA: BodyDNAInput,
+  HMA60_BOX_DISTANCE: HMABoxInput,
 };
 
 export function updateIndicatorFromInput(

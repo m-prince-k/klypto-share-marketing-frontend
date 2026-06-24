@@ -13,26 +13,47 @@ export default function IndicatorBar({
   setActiveBarIndicator,
   setIndicatorProperty,
   setActiveSourceIndicator,
-  setShowSourcePanel
+  setShowSourcePanel,
+  type,
+  indicatorConfigDefault,
+  indicatorConfigs
 }) {
+
+  // Reconstruct configuration string (e.g., "14 close")
+  const cfg = {
+    ...(indicatorConfigDefault?.[type] || {}),
+    ...(indicatorConfigs?.[indicator] || {}),
+  };
+  const len = cfg?.length ?? cfg?.baseLen ?? "";
+  const src = cfg?.source ?? "";
+  const configString = `${len}${src ? " " + src : ""}`;
 
   return (
     <div
       style={{
         display: "flex",
         alignItems: "center",
+        justifyContent: "space-between",
         gap: 10,
-        background: "#ffffff",
-        border: "1px solid #e2e8f0",
+        background: "var(--bg-secondary)",
+        border: "1px solid var(--border-color)",
         borderRadius: 6,
-        padding: "4px 8px",
-        fontSize: 12
+        color: "var(--text-primary)",
+        padding: "0 10px",
+        height: 32,
+        fontSize: 12,
+        whiteSpace: "nowrap"
+        
       }}
     >
 
-      <span className="flex items-center gap-2 text-slate-800">
+      <span className="flex items-center gap-2 text-[var(--text-secondary)]">
 
-        {indicator} : {timeframeValue} :
+        <span style={{ color: "var(--text-primary)", fontWeight: 500 }}>
+          {type}
+        </span>
+        {" : "}
+        {configString && <span>{configString}</span>}
 
         <span style={{ display: "flex", gap: 6 }}>
           {renderValue(indicator, value)}
@@ -40,7 +61,7 @@ export default function IndicatorBar({
 
       </span>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 text-[var(--text-secondary)]">
 
         <button
           onClick={() => toggleIndicatorVisibility(indicator)}

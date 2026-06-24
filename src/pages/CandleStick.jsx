@@ -10,6 +10,7 @@ import {
   createSeriesMarkers,
 } from "lightweight-charts";
 import React from "react";
+import { createPortal } from "react-dom";
 // import IndicatorRuleBuilder from "../components/scanner/IndicatorRuleBuilder";
 import { LuCirclePlus, LuCircleMinus } from "react-icons/lu";
 import { RiResetRightLine } from "react-icons/ri";
@@ -2646,6 +2647,99 @@ json.dumps(result, default=json_default)
                       {/* -----------------INDICATOR BAR------------------- */}
 
                       {selectedIndicator?.length > 0 && (
+                        <>
+                          {/* Main Chart Indicators */}
+                          <div
+                            style={{
+                              position: "absolute",
+                              top: 90,
+                              left: 8,
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 4,
+                              zIndex: 50,
+                            }}
+                          >
+                            {selectedIndicator
+                              .filter((ind) => getPaneIndex(ind.id) === 0)
+                              .map((ind) => {
+                                const { id, type } = ind;
+                                const value = liveIndicatorData[id];
+                                return (
+                                  <IndicatorBar
+                                    key={id}
+                                    indicator={id}
+                                    type={type}
+                                    timeframeValue={timeframeValue}
+                                    value={value}
+                                    renderValue={(indId, val) => renderValue(indId, type, val)}
+                                    indicatorVisibility={indicatorVisibility}
+                                    toggleIndicatorVisibility={toggleIndicatorVisibility}
+                                    removeIndicator={removeIndicator}
+                                    setActiveBarIndicator={() => setActiveBarIndicator({ id, type })}
+                                    setIndicatorProperty={setIndicatorProperty}
+                                    setActiveSourceIndicator={() => setActiveSourceIndicator(type)}
+                                    setShowSourcePanel={setShowSourcePanel}
+                                    indicatorConfigDefault={indicatorConfigDefault}
+                                    indicatorConfigs={indicatorConfigs}
+                                  />
+                                );
+                              })}
+                          </div>
+
+                          {/* Pane Indicators (Portals) */}
+                          {selectedIndicator
+                            .filter((ind) => getPaneIndex(ind.id) !== 0)
+                            .map((ind) => {
+                              const { id, type } = ind;
+                              const value = liveIndicatorData[id];
+                              const paneDiv = panesRef.current[id]?.pane?.getHTMLElement();
+                              
+                              if (!paneDiv) return null;
+                              const portalTarget = paneDiv.tagName?.toLowerCase() === 'tr' 
+                                ? (paneDiv.querySelector('td') || paneDiv) 
+                                : paneDiv;
+
+                              portalTarget.style.position = "relative"; // Ensure the pane is a positioning context
+
+                              return createPortal(
+                                <div
+                                  style={{
+                                    position: "absolute",
+                                    top: 5,
+                                    left: 8,
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: 4,
+                                    zIndex: 50,
+                                  }}
+                                >
+                                  <IndicatorBar
+                                    indicator={id}
+                                    type={type}
+                                    timeframeValue={timeframeValue}
+                                    value={value}
+                                    renderValue={(indId, val) => renderValue(indId, type, val)}
+                                    indicatorVisibility={indicatorVisibility}
+                                    toggleIndicatorVisibility={toggleIndicatorVisibility}
+                                    removeIndicator={removeIndicator}
+                                    setActiveBarIndicator={() => setActiveBarIndicator({ id, type })}
+                                    setIndicatorProperty={setIndicatorProperty}
+                                    setActiveSourceIndicator={() => setActiveSourceIndicator(type)}
+                                    setShowSourcePanel={setShowSourcePanel}
+                                    indicatorConfigDefault={indicatorConfigDefault}
+                                    indicatorConfigs={indicatorConfigs}
+                                  />
+                                </div>,
+                                portalTarget
+                              );
+                            })}
+                        </>
+                      )}
+
+                      {/* -----------------OLD INDICATOR BAR (COMMENTED)------------------- */}
+                      {/*
+                      {selectedIndicator?.length > 0 && (
                         <div
                           style={{
                             position: "absolute",
@@ -2693,7 +2787,6 @@ json.dumps(result, default=json_default)
                                     whiteSpace: "nowrap",
                                   }}
                                 >
-                                  {/* Label + value */}
                                   <span
                                     style={{
                                       color: "var(--text-secondary)",
@@ -2726,7 +2819,6 @@ json.dumps(result, default=json_default)
                                     </span>
                                   </span>
 
-                                  {/* Action buttons */}
                                   <div
                                     style={{
                                       display: "flex",
@@ -2754,24 +2846,24 @@ json.dumps(result, default=json_default)
 
                                     <button
                                       className="ind-btn"
-                                      title="Indicator Settings"
+                                      title="Settings"
                                       onClick={() => {
                                         setActiveBarIndicator({ id, type });
                                         setIndicatorProperty((prev) => !prev);
                                       }}
                                     >
-                                      <IoSettingsOutline size={15} />
+                                      <IoSettingsOutline size={14} />
                                     </button>
 
                                     <button
                                       className="ind-btn"
-                                      title="Source Code"
-                                      // onClick={() => {
-                                      //   setActiveSourceIndicator(type);
-                                      //   setShowSourcePanel(true);
-                                      // }}
+                                      title="Source code"
+                                      onClick={() => {
+                                        setActiveSourceIndicator(type);
+                                        setShowSourcePanel(true);
+                                      }}
                                     >
-                                      <FaCode size={15} />
+                                      <FaCode size={14} />
                                     </button>
 
                                     <button
@@ -2779,10 +2871,22 @@ json.dumps(result, default=json_default)
                                       title="Remove"
                                       onClick={() => removeIndicator(id)}
                                     >
-                                      <IoCloseSharp size={15} />
+                                      <IoCloseSharp size={16} />
+                                    </button>
+
+                                    <button
+                                      className="ind-btn"
+                                      title="More"
+                                      style={{ marginLeft: 4 }}
+                                    >
+                                      <FiMoreHorizontal size={16} />
                                     </button>
                                   </div>
-
+                                </div>
+                              );
+                            })}
+                        </div>
+                      )}
                                   {showAlertForm && (
                                     <IndicatorAlert
                                       onClose={closeAlert}
@@ -2796,6 +2900,7 @@ json.dumps(result, default=json_default)
                             })}
                         </div>
                       )}
+                      */}
                       {/* {selectedIndicator?.map((indicator, index) => {
                 const value = liveIndicatorData[indicator];
                 const paneIndex = paneIndexRef.current[indicator];
