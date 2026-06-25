@@ -1329,7 +1329,8 @@ json.dumps(result, default=json_default)
   // RENDER INDICATOR VALUE
 
   const renderValue = (id, type, value) => {
-    if (value == null) return "--";
+    const emptySymbol = "Ø";
+    if (value == null) return emptySymbol;
 
     const showPercent = type === "AROON"; // Only show % for Aroon
 
@@ -1348,7 +1349,7 @@ json.dumps(result, default=json_default)
       const color = style?.color || "#333";
 
       return (
-        <span style={{ color }}>
+        <span style={{ color }} title={type}>
           {Number(value).toFixed(2)}
           {showPercent ? "%" : ""}
         </span>
@@ -1449,16 +1450,16 @@ json.dumps(result, default=json_default)
             "#333";
 
           return (
-            <span key={key} style={{ marginRight: 8, color }}>
+            <span key={key} style={{ marginRight: 8, color }} title={key}>
               {Number.isFinite(val)
                 ? `${Number(val).toFixed(2)}${showPercent ? "%" : ""}`
-                : "--"}
+                : emptySymbol}
             </span>
           );
         });
     }
 
-    return "--";
+    return emptySymbol;
   };
 
   const renderIndicators = () => {
@@ -1520,6 +1521,8 @@ json.dumps(result, default=json_default)
           panesRef={panesRef}
           indicatorConfigs={indicatorConfigs}
           pane={seriesRef.current}
+          mainSeriesRef={seriesRef}
+          candlesRef={candlesRef}
           timeframeValue={timeframeValue}
           selectedCurrency={selectedCurrency}
         />

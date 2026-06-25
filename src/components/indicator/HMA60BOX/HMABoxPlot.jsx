@@ -42,6 +42,7 @@ export default function HMABoxPlot({
         priceLineVisible: false,
       });
 
+      if (!series) return null;
       series.setData(result.data[key] || []);
 
       groupedSeries[key] = series;
@@ -67,8 +68,14 @@ export default function HMABoxPlot({
       priceLineVisible: false,
     });
 
+    const zeroLineSource =
+      result.data.closeToHmaBoxes ??
+      result.data.highToHmaBoxes ??
+      result.data.lowToHmaBoxes ??
+      [];
+
     zeroLine.setData(
-      result.data.closeToHmaBoxes.map(d => ({
+      zeroLineSource.map(d => ({
         time: d.time,
         value: 0,
       }))

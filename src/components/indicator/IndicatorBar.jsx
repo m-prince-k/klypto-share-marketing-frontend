@@ -1,3 +1,4 @@
+import React, { useState } from "react";
 import { IoEyeOutline, IoEyeOffOutline, IoSettingsOutline, IoCloseSharp } from "react-icons/io5";
 import { FiMoreHorizontal } from "react-icons/fi";
 import { FaCode } from "react-icons/fa";
@@ -18,6 +19,7 @@ export default function IndicatorBar({
   indicatorConfigDefault,
   indicatorConfigs
 }) {
+  const [isHovered, setIsHovered] = useState(false);
 
   // Reconstruct configuration string (e.g., "14 close")
   const cfg = {
@@ -30,20 +32,22 @@ export default function IndicatorBar({
 
   return (
     <div
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       style={{
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         gap: 10,
-        background: "var(--bg-secondary)",
-        border: "1px solid var(--border-color)",
+        background: isHovered ? "rgba(0, 0, 0, 0.5)" : "rgba(0, 0, 0, 0.2)",
+        border: isHovered ? "1px solid white" : "1px solid transparent",
         borderRadius: 6,
         color: "var(--text-primary)",
-        padding: "0 10px",
-        height: 32,
+        padding: "2px 8px",
+        height: 24,
         fontSize: 12,
-        whiteSpace: "nowrap"
-        
+        whiteSpace: "nowrap",
+        transition: "all 0.2s ease-in-out"
       }}
     >
 
@@ -61,7 +65,17 @@ export default function IndicatorBar({
 
       </span>
 
-      <div className="flex items-center gap-2 text-[var(--text-secondary)]">
+      <div 
+        className="text-[var(--text-secondary)]"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          opacity: isHovered ? 1 : 0,
+          visibility: isHovered ? "visible" : "hidden",
+          transition: "opacity 0.2s ease-in-out"
+        }}
+      >
 
         <button
           onClick={() => toggleIndicatorVisibility(indicator)}
