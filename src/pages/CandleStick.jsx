@@ -530,6 +530,46 @@ plot_markers(markers)`,
         return;
       }
 
+      // Detect if user has only left the default boilerplate template with no real logic
+      const BOILERPLATE_LINES = new Set([
+        "markers = []",
+        "# user strategy here",
+        "plot_markers(markers)",
+      ]);
+      const meaningfulLines = code
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0 && !BOILERPLATE_LINES.has(l));
+
+      if (meaningfulLines.length === 0) {
+        Swal.fire({
+          icon: "warning",
+          title: "No Strategy Found",
+          text: "Please write your strategy logic before deploying. The editor only contains the default template.",
+          background: "var(--bg-secondary)",
+          color: "var(--text-primary)",
+        });
+        return;
+      }
+
+      // Require that the strategy actually references financial data variables.
+      // A strategy with only print() / comments isn't a valid signal generator.
+      const STRATEGY_VARIABLES = /\b(close|open|high|low|volume|df)\b/;
+      const hasStrategyLogic = meaningfulLines.some((l) =>
+        STRATEGY_VARIABLES.test(l)
+      );
+      if (!hasStrategyLogic) {
+        Swal.fire({
+          icon: "warning",
+          title: "No Strategy Logic Detected",
+          text: "Your code must use at least one market data variable (close, open, high, low, volume, or df) to generate signals.",
+          background: "var(--bg-secondary)",
+          color: "var(--text-primary)",
+        });
+        return;
+      }
+
+
       setIsDeploying(true);
       setScannerProgressData(null);
 
@@ -560,7 +600,7 @@ plot_markers(markers)`,
         }
       }
 
-      /* // 1.5 Validate Python Syntax on Frontend before API Call
+       // 1.5 Validate Python Syntax on Frontend before API Call
       if (!pyodideRef.current) {
         Swal.fire({
           icon: "warning",
@@ -577,132 +617,23 @@ plot_markers(markers)`,
         const sanitizedCode = code.replace(/\u00A0/g, " ");
         pyodideRef.current.globals.set("__code_to_validate", sanitizedCode);
         const resultJson = await pyodideRef.current.runPythonAsync(`
-import pandas as pd
-import numpy as np
-import sys
-import io
-import time
 import ast
 import json
+import sys
 import traceback
 
 result = { "success": True, "error_type": None, "error_message": None, "output": "", "markers": [] }
 
-class StrategyValidator(ast.NodeVisitor):
-    def __init__(self):
-        self.used_vars = set()
-        self.overridden_vars = set()
-        self.forbidden_imports = set()
-        self.reserved = {'df', 'open', 'high', 'low', 'close', 'volume', 'datetime', 'plot_markers'}
-        
-    def visit_Name(self, node):
-        if isinstance(node.ctx, ast.Load) and node.id in self.reserved:
-            self.used_vars.add(node.id)
-        elif isinstance(node.ctx, ast.Store) and node.id in self.reserved:
-            self.overridden_vars.add(node.id)
-        self.generic_visit(node)
-        
-    def visit_Import(self, node):
-        for alias in node.names:
-            if alias.name in ['os', 'sys', 'subprocess']:
-                self.forbidden_imports.add(alias.name)
-        self.generic_visit(node)
-        
-    def visit_ImportFrom(self, node):
-        if node.module in ['os', 'sys', 'subprocess']:
-            self.forbidden_imports.add(node.module)
-        self.generic_visit(node)
-
-# Step 1: AST Validation
 try:
-    tree = ast.parse(__code_to_validate)
-    validator = StrategyValidator()
-    validator.visit(tree)
-    
-    # Loosened validity check
-    # if len(validator.used_vars) == 0:
-    #     raise ValueError("Invalid Strategy: You must use at least one engine variable (df, open, high, low, close, volume, datetime, plot_markers).")
-    
-    if len(validator.overridden_vars) > 0:
-        raise ValueError(f"Security Error: You are not allowed to override engine variables or functions: {', '.join(validator.overridden_vars)}")
-        
-    if len(validator.forbidden_imports) > 0:
-        raise ValueError(f"Security Error: Forbidden imports detected: {', '.join(validator.forbidden_imports)}")
-except Exception as e:
+    ast.parse(__code_to_validate)
+except SyntaxError as e:
     result["success"] = False
-    result["error_type"] = type(e).__name__
-    if isinstance(e, SyntaxError):
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        tb_lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
-        result["error_message"] = "".join(tb_lines).strip()
-    else:
-        result["error_message"] = str(e)
+    result["error_type"] = "SyntaxError"
+    exc_type, exc_value, exc_traceback = sys.exc_info()
+    tb_lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+    result["error_message"] = "".join(tb_lines).strip()
 
-if result["success"]:
-    # Step 2: Setup Globals
-    np.random.seed(42)
-    closes = np.random.normal(0, 1, 300).cumsum() + 100
-    df = pd.DataFrame({
-        'open': closes + np.random.normal(0, 0.5, 300),
-        'high': closes + np.random.uniform(0.1, 1.5, 300),
-        'low': closes - np.random.uniform(0.1, 1.5, 300),
-        'close': closes,
-        'volume': np.random.randint(100, 1000, 300),
-        'datetime': pd.date_range(start='1/1/2026', periods=300, freq='D')
-    }).set_index('datetime')
-    open = df['open']
-    high = df['high']
-    low = df['low']
-    close = df['close']
-    volume = df['volume']
-    datetime = df['datetime']
-    def plot_markers(m): pass
-
-    # Step 3: Execution and Sandboxing
-    old_stdout = sys.stdout
-    new_stdout = io.StringIO()
-    sys.stdout = new_stdout
-
-    sys.setrecursionlimit(100)
-    start_time = time.time()
-
-    def trace_calls(frame, event, arg):
-        if time.time() - start_time > 300.0:
-            raise TimeoutError("Execution timed out (infinite loop or heavy computation detected). Limit is 5 minutes.")
-        return trace_calls
-
-    try:
-        sys.settrace(trace_calls)
-        exec(__code_to_validate)
-        sys.settrace(None)
-        
-        # Extract markers
-        if 'markers' in globals() and isinstance(markers, list):
-            # Only keep dict markers to avoid json.dumps crashing
-            clean_markers = [m for m in markers if isinstance(m, dict)]
-            result["markers"] = clean_markers
-        else:
-            result["markers"] = []
-
-    except Exception as e:
-        sys.settrace(None)
-        result["success"] = False
-        result["error_type"] = type(e).__name__
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        tb_lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
-        result["error_message"] = "".join(tb_lines[-2:]).strip()
-    finally:
-        sys.stdout = old_stdout
-        result["output"] = new_stdout.getvalue()
-
-def json_default(obj):
-    if hasattr(obj, 'isoformat'): return obj.isoformat()
-    if isinstance(obj, np.integer): return int(obj)
-    if isinstance(obj, np.floating): return float(obj)
-    if isinstance(obj, np.ndarray): return obj.tolist()
-    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
-
-json.dumps(result, default=json_default)
+json.dumps(result)
         `);
 
         const result = JSON.parse(resultJson);
@@ -771,7 +702,7 @@ json.dumps(result, default=json_default)
         });
         setIsDeploying(false);
         return;
-      } */
+      } 
 
       try {
         const closes = candlesRef?.current?.map((c) => c.close) || [];
@@ -806,6 +737,12 @@ json.dumps(result, default=json_default)
         console.log("🚀 [API] Triggering run-scanner API...");
         console.log("📦 [API] Payload:", payload);
         console.log("👤 Active User ID (from auth):", userId);
+
+        // Guard: do not call the API if code is effectively empty
+        if (!code || !code.trim()) {
+          setIsDeploying(false);
+          return;
+        }
 
         const response = await apiService.post(
           `/api/strategy/run-scanner`,

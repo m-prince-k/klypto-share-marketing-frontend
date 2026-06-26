@@ -1,4 +1,6 @@
-import React, { useMemo, useState, useRef } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
+import apiService from "../services/apiServices";
+import { Spinner } from "react-bootstrap";
 import { Bar } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -21,74 +23,7 @@ ChartJS.register(
   Legend
 );
 
-/* -------------------------------------------------------------------------
-   DUMMY DATA
-   Replace this with your live WebSocket / Socket.IO feed. Shape is kept
-   simple on purpose: one row per strike, with snapshot-at-open and
-   current values so OI-change and IV-change can both be derived.
-------------------------------------------------------------------------- */
-
-const STOCK_LIST = [
-  { symbol: "RELIANCE", ltp: 1318.1, change: 0.0, strikeStep: 10 },
-  { symbol: "NIFTY", ltp: 23502.4, change: 0.42, strikeStep: 50 },
-  { symbol: "BANKNIFTY", ltp: 50321.65, change: -0.18, strikeStep: 100 },
-  { symbol: "TCS", ltp: 3845.2, change: 0.91, strikeStep: 20 },
-  { symbol: "HDFCBANK", ltp: 1642.75, change: -0.34, strikeStep: 10 },
-];
-
-// Builds the strike ladder for a given stock: a fixed number of strikes
-// centered on the nearest ATM strike, spaced by that symbol's strike step.
-function getStrikesForSymbol(stock, countEachSide = 10) {
-  const step = stock.strikeStep;
-  const atm = Math.round(stock.ltp / step) * step;
-  const strikes = [];
-  for (let i = -countEachSide; i <= countEachSide; i++) {
-    strikes.push(Math.round(atm + i * step));
-  }
-  return strikes;
-}
-
-// deterministic-ish pseudo-random generator so dummy data stays stable
-function seededRandom(seed) {
-  let s = seed;
-  return () => {
-    s = (s * 9301 + 49297) % 233280;
-    return s / 233280;
-  };
-}
-
-function buildDummyData(spot, strikes) {
-  const rnd = seededRandom(Math.round(spot * 7));
-  return strikes.map((strike) => {
-    const distance = Math.abs(strike - spot);
-    const span = Math.max(...strikes) - Math.min(...strikes) || 1;
-    const proximityFactor = Math.max(0.15, 1 - distance / (span * 0.6));
-
-    const callOpenOI = (rnd() * 30 + 10) * 1e5 * proximityFactor;
-    const putOpenOI = (rnd() * 30 + 10) * 1e5 * proximityFactor;
-
-    const callOIChg =
-      (rnd() - 0.65) * 12 * 1e5 * proximityFactor * (strike > spot ? 1.4 : 0.8);
-    const putOIChg =
-      (rnd() - 0.45) * 10 * 1e5 * proximityFactor * (strike < spot ? 1.3 : 0.7);
-
-    const callOICurrent = Math.max(callOpenOI + callOIChg, 0);
-    const putOICurrent = Math.max(putOpenOI + putOIChg, 0);
-
-    const callIVOpen = 14 + rnd() * 10;
-    const putIVOpen = 14 + rnd() * 10;
-    const callIVChg = (rnd() - 0.5) * 3.5;
-    const putIVChg = (rnd() - 0.5) * 3.5;
-
-    return {
-      strike,
-      callOI: { open: callOpenOI, chg: callOIChg, current: callOICurrent },
-      putOI: { open: putOpenOI, chg: putOIChg, current: putOICurrent },
-      callIV: { open: callIVOpen, chg: callIVChg, current: callIVOpen + callIVChg },
-      putIV: { open: putIVOpen, chg: putIVChg, current: putIVOpen + putIVChg },
-    };
-  });
-}
+// Helpers for formatting
 
 function fmtLakh(value) {
   const lakhs = value / 1e5;
@@ -104,40 +39,190 @@ function fmtPct(value) {
 ------------------------------------------------------------------------- */
 
 export default function OptionChainOIChart() {
-  const [selectedSymbolIdx, setSelectedSymbolIdx] = useState(0);
+  const [symbolsList, setSymbolsList] = useState([]);
+  const [selectedSymbol, setSelectedSymbol] = useState("");
+  const [expiriesList, setExpiriesList] = useState([]);
+  const [selectedExpiry, setSelectedExpiry] = useState("");
+  
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [expiry, setExpiry] = useState("30jun");
+  const [maxAvailableDate, setMaxAvailableDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [historicalData, setHistoricalData] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+
   const [chartMode, setChartMode] = useState("oi"); // "oi" | "iv"
   const [timeRange, setTimeRange] = useState([0, 100]); // % of session 9:15-3:30
   const [hoveredStrike, setHoveredStrike] = useState(null);
-  const [selectedStrike, setSelectedStrike] = useState(null); // null = show all strikes
   const dragRef = useRef(null);
 
-  const stock = STOCK_LIST[selectedSymbolIdx];
+  useEffect(() => {
+    apiService.get("/options/symbols").then(res => {
+      const data = Array.isArray(res) ? res : res.data;
+      if (data && data.length) {
+        const symbols = data.map(s => s.symbol || s.stockName || s);
+        setSymbolsList(symbols);
+        setSelectedSymbol(symbols[0]);
+      }
+    }).catch(console.error);
+  }, []);
 
-  // Strike ladder repopulates whenever the symbol changes
-  const symbolStrikes = useMemo(() => getStrikesForSymbol(stock), [stock.symbol]);
+  useEffect(() => {
+    if (!selectedSymbol) return;
+    apiService.get("/options/expiries", { stockName: selectedSymbol }).then(res => {
+      const data = Array.isArray(res) ? res : res.data;
+      if (data && data.length) {
+        const expiries = data.map(e => e.expiryDate || e.date || e);
+        setExpiriesList(expiries);
+        setSelectedExpiry(""); // Default to All Expiries
+      } else {
+        setExpiriesList([]);
+        setSelectedExpiry("");
+      }
+    }).catch(console.error);
+  }, [selectedSymbol]);
+
+  useEffect(() => {
+    if (!selectedSymbol) return;
+    
+    const fetchParams = {
+        stockName: selectedSymbol,
+        limit: 1,
+        sortBy: "date_ist",
+        sortOrder: "DESC"
+    };
+    
+    apiService.get("/options/data-table", fetchParams).then(res => {
+        const records = res?.data || res?.records || res || [];
+        if (records.length > 0) {
+            const latest = records[0].date_ist || records[0].date;
+            if (latest) {
+                // parse "2025-12-31 15:25" into "2025-12-31"
+                const dateOnly = latest.split(" ")[0].slice(0, 10);
+                setMaxAvailableDate(dateOnly);
+                
+                // If the user's currently selected date is ahead of the actual max date we have data for, switch to maxDate
+                setDate(prev => {
+                   if (new Date(prev) > new Date(dateOnly)) {
+                       return dateOnly;
+                   }
+                   return prev;
+                });
+            }
+        }
+    }).catch(console.error);
+  }, [selectedSymbol]);
+
+  useEffect(() => {
+    if (!selectedSymbol || !date) return;
+    setIsLoading(true);
+    const fetchParams = {
+        stockName: selectedSymbol,
+        fromDate: date,
+        toDate: date,
+        limit: "all"
+    };
+    if (selectedExpiry) {
+        fetchParams.expiryDate = selectedExpiry;
+    }
+    console.log("[OiBacktestChart] Fetching data-table with params:", fetchParams);
+    apiService.get("/options/data-table", fetchParams).then(res => {
+        console.log("[OiBacktestChart] data-table raw response:", res);
+        const records = res?.data || res?.records || res || [];
+        console.log(`[OiBacktestChart] data-table extracted ${Array.isArray(records) ? records.length : 0} records.`);
+        setHistoricalData(Array.isArray(records) ? records : []);
+    }).catch(err => {
+        console.error("[OiBacktestChart] Fetch error:", err);
+    }).finally(() => setIsLoading(false));
+  }, [selectedSymbol, selectedExpiry, date]);
+
+  const uniqueTimestamps = useMemo(() => {
+    if (!historicalData.length) return [];
+    const ts = [...new Set(historicalData.map(d => d.date_ist))];
+    // Custom sort to handle "YYYY-MM-DD HH:mm" safely
+    ts.sort((a, b) => {
+        const timeA = new Date(a.replace(" ", "T")).getTime();
+        const timeB = new Date(b.replace(" ", "T")).getTime();
+        return timeA - timeB;
+    });
+    console.log(`[OiBacktestChart] Found ${ts.length} unique timestamps. First:`, ts[0], "Last:", ts[ts.length - 1]);
+    return ts;
+  }, [historicalData]);
+
+  const visibleData = useMemo(() => {
+      console.log(`[OiBacktestChart] Recalculating visibleData. historicalData: ${historicalData.length}, uniqueTimestamps: ${uniqueTimestamps.length}`);
+      if (!historicalData.length || !uniqueTimestamps.length) return [];
+
+      let startTsIndex = Math.floor((timeRange[0] / 100) * (uniqueTimestamps.length - 1));
+      let endTsIndex = Math.floor((timeRange[1] / 100) * (uniqueTimestamps.length - 1));
+      
+      startTsIndex = Math.max(0, Math.min(startTsIndex, uniqueTimestamps.length - 1));
+      endTsIndex = Math.max(0, Math.min(endTsIndex, uniqueTimestamps.length - 1));
+
+      const startTs = uniqueTimestamps[startTsIndex];
+      const endTs = uniqueTimestamps[endTsIndex];
+
+      const startData = historicalData.filter(d => d.date_ist === startTs);
+      const endData = historicalData.filter(d => d.date_ist === endTs);
+
+      const strikeMap = {};
+      
+      const processSide = (row, isStart) => {
+          const strike = Number(row.strike);
+          if (isNaN(strike)) return;
+          if (!strikeMap[strike]) {
+              strikeMap[strike] = {
+                  strike,
+                  callOI: { open: 0, current: 0, chg: 0 },
+                  putOI: { open: 0, current: 0, chg: 0 },
+                  callIV: { open: 0, current: 0, chg: 0 },
+                  putIV: { open: 0, current: 0, chg: 0 }
+              };
+          }
+          const isCE = row.optionType === "CE" || row.option_side === "CE";
+          const oi = Number(row.oi) || 0;
+          const iv = Number(row.iv) || 0;
+          
+          if (isStart) {
+              if (isCE) {
+                  strikeMap[strike].callOI.open = oi;
+                  strikeMap[strike].callIV.open = iv;
+              } else {
+                  strikeMap[strike].putOI.open = oi;
+                  strikeMap[strike].putIV.open = iv;
+              }
+          }
+          if (!isStart || startTsIndex === endTsIndex) {
+              if (isCE) {
+                  strikeMap[strike].callOI.current = oi;
+                  strikeMap[strike].callIV.current = iv;
+              } else {
+                  strikeMap[strike].putOI.current = oi;
+                  strikeMap[strike].putIV.current = iv;
+              }
+          }
+      };
+
+      startData.forEach(r => processSide(r, true));
+      if (startTsIndex !== endTsIndex) {
+          endData.forEach(r => processSide(r, false));
+      }
+
+      Object.values(strikeMap).forEach(s => {
+          s.callOI.chg = s.callOI.current - s.callOI.open;
+          s.putOI.chg = s.putOI.current - s.putOI.open;
+          s.callIV.chg = s.callIV.current - s.callIV.open;
+          s.putIV.chg = s.putIV.current - s.putIV.open;
+      });
+
+      const finalData = Object.values(strikeMap).sort((a, b) => a.strike - b.strike);
+      console.log(`[OiBacktestChart] Computed finalData with ${finalData.length} strikes for interval [${startTs}] -> [${endTs}]`);
+      return finalData;
+  }, [historicalData, uniqueTimestamps, timeRange]);
 
   const atmStrike = useMemo(() => {
-    return symbolStrikes.reduce((closest, s) =>
-      Math.abs(s - stock.ltp) < Math.abs(closest - stock.ltp) ? s : closest
-    );
-  }, [symbolStrikes, stock.ltp]);
-
-  const allData = useMemo(
-    () => buildDummyData(stock.ltp, symbolStrikes),
-    [stock.symbol, stock.ltp, symbolStrikes]
-  );
-
-  // Reset the strike-price dropdown back to "All strikes" whenever the symbol changes
-  React.useEffect(() => {
-    setSelectedStrike(null);
-  }, [stock.symbol]);
-
-  const visibleData = useMemo(
-    () => (selectedStrike == null ? allData : allData.filter((d) => d.strike === selectedStrike)),
-    [allData, selectedStrike]
-  );
+      if (!visibleData.length) return null;
+      const strikes = visibleData.map(d => d.strike);
+      return strikes[Math.floor(strikes.length / 2)];
+  }, [visibleData]);
 
 
 
@@ -285,10 +370,12 @@ export default function OptionChainOIChart() {
       let pct = ((clientX - rect.left) / rect.width) * 100;
       pct = Math.max(0, Math.min(100, pct));
       setTimeRange((prev) => {
+        // Minimum gap = 5 minutes out of 375-min session ≈ 1.33%
+        const MIN_GAP = (5 / 375) * 100;
         if (handle === "start") {
-          return [Math.min(pct, prev[1] - 2), prev[1]];
+          return [Math.min(pct, prev[1] - MIN_GAP), prev[1]];
         }
-        return [prev[0], Math.max(pct, prev[0] + 2)];
+        return [prev[0], Math.max(pct, prev[0] + MIN_GAP)];
       });
     };
     const up = () => {
@@ -340,7 +427,7 @@ export default function OptionChainOIChart() {
         .oc-shell * { box-sizing: border-box; }
         .oc-layout {
           display: grid;
-          grid-template-columns: 300px 1fr;
+          grid-template-columns: 1fr;
           gap: 20px;
           max-width: 1400px;
           margin: 0 auto;
@@ -579,122 +666,7 @@ export default function OptionChainOIChart() {
 
       <div className="oc-layout">
         {/* ============ SIDE PANEL ============ */}
-        <aside className="oc-side">
-          <div className="oc-card">
-            <label className="oc-label">Symbol</label>
-            <div className="oc-select-wrap">
-              <select
-                className="oc-select"
-                value={selectedSymbolIdx}
-                onChange={(e) => setSelectedSymbolIdx(Number(e.target.value))}
-              >
-                {STOCK_LIST.map((s, idx) => (
-                  <option key={s.symbol} value={idx}>
-                    {s.symbol} — {s.ltp.toFixed(2)} ({s.change >= 0 ? "+" : ""}
-                    {s.change.toFixed(2)}%)
-                  </option>
-                ))}
-              </select>
-              <span className="oc-select-caret">▾</span>
-            </div>
-          </div>
 
-          {/* <div className="oc-card">
-            <label className="oc-label">Strike Price</label>
-            <div className="oc-select-wrap">
-              <select
-                className="oc-select"
-                value={selectedStrike ?? "all"}
-                onChange={(e) =>
-                  setSelectedStrike(e.target.value === "all" ? null : Number(e.target.value))
-                }
-              >
-                <option value="all">All strikes</option>
-                {symbolStrikes.map((strike) => (
-                  <option key={strike} value={strike}>
-                    {strike}
-                    {strike === atmStrike ? " (ATM)" : ""}
-                  </option>
-                ))}
-              </select>
-              <span className="oc-select-caret">▾</span>
-            </div>
-            <p className="oc-hint">Strikes update automatically based on the selected symbol.</p>
-          </div> */}
-
-          <div className="oc-card">
-            <label className="oc-label">Date</label>
-            <input
-              type="date"
-              className="oc-date-input"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
-            <p className="oc-hint">Showing data for the next 24 hrs from this date, in session time.</p>
-          </div>
-
-          {/* <div className="oc-card">
-            <label className="oc-label">Expiries Included</label>
-            <div
-              className="oc-checkbox-row"
-              onClick={() => setExpiry(expiry === "30jun" ? "" : "30jun")}
-            >
-              <span className={`oc-checkbox ${expiry === "30jun" ? "checked" : ""}`} />
-              30 Jun (5 days)
-            </div>
-            <div
-              className="oc-checkbox-row"
-              onClick={() => setExpiry(expiry === "28jul" ? "28jul" : "")}
-            >
-              <span className={`oc-checkbox ${expiry === "28jul" ? "checked" : ""}`} />
-              28 Jul (33 days)
-            </div>
-          </div>
-
-          <div className="oc-card">
-            <div className="oc-side-head">
-              <label className="oc-label" style={{ marginBottom: 0 }}>Strike Range</label>
-              <button className="oc-reset-link" onClick={resetStrikeRange}>↺ Reset</button>
-            </div>
-            <div className="oc-range-row">
-              <div className="oc-range-field">
-                <span className="oc-hint" style={{ marginBottom: 4 }}>Min</span>
-                <div className="oc-stepper">
-                  <button onClick={() => setStrikeMin((m) => Math.max(STRIKES[0], m - 10))}>−</button>
-                  <input value={strikeMin} readOnly />
-                  <button onClick={() => setStrikeMin((m) => Math.min(strikeMax - 10, m + 10))}>+</button>
-                </div>
-              </div>
-              <div className="oc-range-field">
-                <span className="oc-hint" style={{ marginBottom: 4 }}>Max</span>
-                <div className="oc-stepper">
-                  <button onClick={() => setStrikeMax((m) => Math.max(strikeMin + 10, m - 10))}>−</button>
-                  <input value={strikeMax} readOnly />
-                  <button onClick={() => setStrikeMax((m) => Math.min(STRIKES[STRIKES.length - 1], m + 10))}>+</button>
-                </div>
-              </div>
-            </div>
-
-            <label className="oc-label" style={{ marginTop: 16 }}>Strikes above and below ATM</label>
-            <div className="oc-pill-grid">
-              <button
-                className={`oc-pill ${strikesAroundATM === null ? "active" : ""}`}
-                onClick={resetStrikeRange}
-              >
-                Show All
-              </button>
-              {[5, 10, 15, 20, 25].map((n) => (
-                <button
-                  key={n}
-                  className={`oc-pill ${strikesAroundATM === n ? "active" : ""}`}
-                  onClick={() => applyStrikesAroundATM(n)}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-          </div> */}
-        </aside>
 
         {/* ============ MAIN PANEL ============ */}
         <main className="oc-main">
@@ -709,18 +681,56 @@ export default function OptionChainOIChart() {
                     month: "short",
                   })}
                 </h2>
-                <a className="oc-how-link" href="#">How to read this?</a>
-                <div className="oc-spot-chip">
-                  <span>{stock.symbol}</span>
-                  <b>{stock.ltp.toFixed(2)}</b>
-                  <span className={stock.change >= 0 ? "oc-chg-up" : "oc-chg-down"}>
-                    {stock.change >= 0 ? "+" : ""}
-                    {stock.change.toFixed(2)}%
-                  </span>
+                {isLoading && <Spinner animation="border" size="sm" style={{marginLeft: "10px", color: "var(--oc-accent)"}} />}
+              </div>
+
+              <div className="oc-top-nav" style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                {/* Symbol */}
+                <div className="oc-select-wrap" style={{ width: '130px', margin: 0 }}>
+                  <select
+                    className="oc-select"
+                    value={selectedSymbol}
+                    onChange={(e) => setSelectedSymbol(e.target.value)}
+                    style={{ padding: '6px 12px', fontSize: '13px' }}
+                  >
+                    {symbolsList.map((s, idx) => (
+                      <option key={idx} value={s}>{s}</option>
+                    ))}
+                  </select>
+                  <span className="oc-select-caret">▾</span>
+                </div>
+
+                {/* Expiry */}
+                <div className="oc-select-wrap" style={{ width: '140px', margin: 0 }}>
+                  <select
+                    className="oc-select"
+                    value={selectedExpiry}
+                    onChange={(e) => setSelectedExpiry(e.target.value)}
+                    style={{ padding: '6px 12px', fontSize: '13px' }}
+                  >
+                    <option value="">All Expiries</option>
+                    {expiriesList.map((e, idx) => (
+                      <option key={idx} value={e}>{e}</option>
+                    ))}
+                  </select>
+                  <span className="oc-select-caret">▾</span>
+                </div>
+
+                {/* Date */}
+                <div style={{ width: '150px' }}>
+                  <input
+                    type="date"
+                    className="oc-date-input"
+                    value={date}
+                    min="2025-01-01"
+                    max={maxAvailableDate}
+                    onChange={(e) => setDate(e.target.value)}
+                    style={{ padding: '5px 10px', fontSize: '13px', margin: 0 }}
+                  />
                 </div>
               </div>
 
-              <div className="oc-toggle-wrap">
+              <div className="oc-toggle-wrap" style={{ marginLeft: 'auto' }}>
                 <span className="oc-hint" style={{ marginTop: 0 }}>View</span>
                 <div
                   className={`oc-toggle ${chartMode === "iv" ? "iv" : ""}`}
