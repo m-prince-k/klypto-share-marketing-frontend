@@ -7,6 +7,7 @@ const LeftAlertListing = ({
   alertResult,
   setAlertResult,
   setSelectedCurrency,
+  setActiveTab,
 }) => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");

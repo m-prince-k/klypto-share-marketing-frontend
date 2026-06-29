@@ -169,11 +169,20 @@ plot_markers(markers)`,
       const apiUrl =
         import.meta.env.VITE_STRATEGY_API_URL || "http://192.168.1.6:3000";
       const resp = await apiService.get(`${apiUrl}/api/predictResult`);
-      console.log("predictResult API Raw Response:", resp);
+      console.log("predict API result:", resp);
 
-      const data = Array.isArray(resp) ? resp : resp?.signals || [];
+      let data = [];
+      if (Array.isArray(resp)) {
+        data = resp;
+      } else if (resp?.signals) {
+        data = resp.signals;
+      } else if (resp?.data && Array.isArray(resp.data)) {
+        data = resp.data;
+      } else if (resp?.symbol) {
+        data = [resp];
+      }
       const filtered = data.filter((item) => item.symbol && item.response);
-      console.log("Filtered predictResult Data:", filtered);
+      console.log("predict API result (filtered):", filtered);
 
       setPredictResultData(filtered);
 
@@ -330,7 +339,7 @@ plot_markers(markers)`,
 
         setDashboardSignals((prev) => [...prev, ...newSignals]);
       }
-    }, 300000);
+    }, 500);
 
     return () => clearInterval(flushInterval);
   }, []);
@@ -436,11 +445,17 @@ plot_markers(markers)`,
       console.log("Currently selected stock:", selectedCurrency);
 
       dashboardSignals.forEach((item) => {
-        const type = item.signalType;
-        const utcStr = item.timestamp || item.createdAt || item.updatedAt;
+        let type = item.signalType;
+        if (!type && item.response?.type) {
+          type = item.response.type === "CALL" ? "BUY" : item.response.type === "PUT" ? "SELL" : "BUY";
+        }
+        let utcStr = item.timestamp || item.createdAt || item.updatedAt || item.tick?.datetime || item.response?.entry_time;
+        if (utcStr && typeof utcStr === "string") {
+          utcStr = utcStr.replace(" ", "T");
+        }
 
         if (utcStr && type) {
-          const isBuy = type.toUpperCase() === "BUY";
+          const isBuy = type.toUpperCase() === "BUY" || type.toUpperCase() === "CALL";
 
           // Use unix_timestamp if available, else convert ISO
           let utcTime;
@@ -1820,6 +1835,16 @@ json.dumps(result)
       }
 
       seriesReadyRef.current = true;
+
+      if (selectedIndicatorRef.current && selectedIndicatorRef.current.length > 0) {
+        fetchIndicatorData(
+          selectedIndicatorRef.current,
+          selectedCurrencyRef.current,
+          timeframeValue,
+        ).then(() => {
+          setIndicatorUpdateTrigger((v) => v + 1);
+        });
+      }
 
       if (
         lastDeployedMarkersRef.current &&

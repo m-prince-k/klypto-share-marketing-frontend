@@ -112,33 +112,33 @@ export default function HealthyBoxPlot({
     // MARKERS
     //===================================
 
-    const markersToSet = [
-      ...(result.data.bullSignals || []).map((p) => ({
-        time: p.time,
-        position: "belowBar",
-        shape: "arrowUp",
-        color: style?.bullSignals?.color || "rgba(0,255,0,1)",
-        text: "HB",
-        size: 1,
-      })),
+    // const markersToSet = [
+    //   ...(result.data.bullSignals || []).map((p) => ({
+    //     time: p.time,
+    //     position: "belowBar",
+    //     shape: "arrowUp",
+    //     color: style?.bullSignals?.color || "rgba(0,255,0,1)",
+    //     text: "HB",
+    //     size: 1,
+    //   })),
 
-      ...(result.data.bearSignals || []).map((p) => ({
-        time: p.time,
-        position: "aboveBar",
-        shape: "arrowDown",
-        color: style?.bearSignals?.color || "rgba(255,0,0,1)",
-        text: "HS",
-        size: 1,
-      })),
-    ].sort((a, b) => a.time - b.time);
+    //   ...(result.data.bearSignals || []).map((p) => ({
+    //     time: p.time,
+    //     position: "aboveBar",
+    //     shape: "arrowDown",
+    //     color: style?.bearSignals?.color || "rgba(255,0,0,1)",
+    //     text: "HS",
+    //     size: 1,
+    //   })),
+    // ].sort((a, b) => a.time - b.time);
 
-    if (markersToSet.length > 0 && pane) {
-      import("lightweight-charts").then(({ createSeriesMarkers }) => {
-        const markersPrimitive = createSeriesMarkers(pane, markersToSet);
-        pane.attachPrimitive(markersPrimitive);
-        groupedSeries.markersPrimitive = markersPrimitive;
-      }).catch(err => console.error("Failed to create markers", err));
-    }
+    // if (markersToSet.length > 0 && pane) {
+    //   import("lightweight-charts").then(({ createSeriesMarkers }) => {
+    //     const markersPrimitive = createSeriesMarkers(pane, markersToSet);
+    //     pane.attachPrimitive(markersPrimitive);
+    //     groupedSeries.markersPrimitive = markersPrimitive;
+    //   }).catch(err => console.error("Failed to create markers", err));
+    // }
 
     indicatorSeriesRef.current[id] = groupedSeries;
   }, [result]);
