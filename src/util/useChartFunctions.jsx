@@ -756,6 +756,9 @@ export default function useChartFunctions({
     processIndicatorResponse,
   };
 }
+// Global queue to ensure sequential processing of getIndicatorDetails requests
+let indicatorFetchQueue = Promise.resolve();
+
 async function fetchDataForIndicators(
   candles,
   selectedCurrency,
@@ -772,21 +775,46 @@ async function fetchDataForIndicators(
   };
   try {
     const response = await new Promise((resolve, reject) => {
-      if (!socketRef.current) return reject(new Error("No socket"));
+      indicatorFetchQueue = indicatorFetchQueue.then(() => {
+        return new Promise((innerResolve) => {
+          if (!socketRef.current) {
+            innerResolve();
+            return reject(new Error("No socket"));
+          }
 
-      socketRef.current?.emit("getIndicatorDetails", {
-        symbol: selectedCurrency?.name,
-        interval: timeframeValue,
-        fromDate: fromDate,
-        toDate: toDate,
-        type,
-        candles,
+          socketRef.current?.emit("getIndicatorDetails", {
+            symbol: selectedCurrency?.name,
+            interval: timeframeValue,
+            fromDate: fromDate,
+            toDate: toDate,
+            type,
+            candles,
+          });
+
+          const onResponse = (data) => {
+            socketRef.current?.off("indicatorDetailsError", onError);
+            innerResolve();
+            resolve(data);
+          };
+
+          const onError = (err) => {
+            socketRef.current?.off("indicatorDetailsResponse", onResponse);
+            innerResolve();
+            reject(err);
+          };
+
+          socketRef.current?.once("indicatorDetailsResponse", onResponse);
+          socketRef.current?.once("indicatorDetailsError", onError);
+
+          // Fail-safe timeout to prevent hanging the queue
+          setTimeout(() => {
+            socketRef.current?.off("indicatorDetailsResponse", onResponse);
+            socketRef.current?.off("indicatorDetailsError", onError);
+            innerResolve();
+            resolve(null);
+          }, 10000);
+        });
       });
-      socketRef.current?.once("indicatorDetailsResponse", (data) => {
-        console.log(data, "===========================");
-        resolve(data);
-      });
-      socketRef.current?.once("indicatorDetailsError", (err) => reject(err));
     });
 
     console.log("Raw indicator data for", type, ":", response);

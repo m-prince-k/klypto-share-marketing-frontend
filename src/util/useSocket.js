@@ -155,6 +155,7 @@ const useSocket = (props = {}) => {
   const methods = React.useMemo(() => ({
     emit: socketManager.emit.bind(socketManager),
     once: socketManager.once.bind(socketManager),
+    off: socketManager.socket.off.bind(socketManager.socket),
     connect: socketManager.socket.connect.bind(socketManager.socket),
     disconnect: socketManager.socket.disconnect.bind(socketManager.socket),
   }), []);

@@ -102,7 +102,7 @@ export default function HealthyBoxPlot({
           visible: lineStyleDef?.visible ?? true,
           priceLineVisible: false,
           lastValueVisible: false,
-        });
+        }, id);
         refSeries.setData(lineData);
         groupedSeries[level.key] = refSeries;
       });

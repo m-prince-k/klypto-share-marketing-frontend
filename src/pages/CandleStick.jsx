@@ -1134,19 +1134,38 @@ json.dumps(result)
   };
 
   //  ADD SERIES
-  const addSeries = (indicator, SeriesType, options = {}) => {
+  const addSeries = (indicator, SeriesType, options = {}, explicitPaneKey = null) => {
     if (!chartRef.current) return null;
 
-    const paneIndex = getPaneIndex(indicator);
+    const paneKey = explicitPaneKey || indicator;
+    const paneIndex = getPaneIndex(paneKey);
+
+    // Force visibility to match the master toggle state if it's explicitly set to false
+    const isVisible = indicatorVisibility[paneKey] !== false && (options.visible !== false);
 
     const series = chartRef.current.addSeries(
       SeriesType,
       {
         ...(paneIndex !== 0 && { priceScaleId: `pane_${paneIndex}` }),
         ...options,
+        visible: isVisible,
       },
       paneIndex,
     );
+
+    if (paneIndex !== 0) {
+      try {
+        chartRef.current.priceScale(`pane_${paneIndex}`).applyOptions({
+          autoScale: true,
+          scaleMargins: {
+            top: 0.1,
+            bottom: 0.1,
+          },
+        });
+      } catch (err) {
+        console.warn("Could not configure price scale for pane", paneIndex, err);
+      }
+    }
 
     // ✅ Populate panesRef for sub-pane indicators using instanceId as key
     if (paneIndex !== 0) {
@@ -1455,9 +1474,31 @@ json.dumps(result)
       // but we remap to the instance's id-keyed style so each instance is visually independent
       const scopedIndicatorStyle = new Proxy(indicatorStyle, {
         get(target, prop) {
-          if (prop === type) {
+          if (prop === type || prop === id) {
             // instance-specific style takes priority; fall back to type default
-            return target[id] ?? target[type];
+            const baseStyle = target[id] ?? target[type];
+            
+            // Force visible: false deeply if the master toggle is off
+            if (indicatorVisibility[id] === false && baseStyle) {
+              const overrideStyle = JSON.parse(JSON.stringify(baseStyle));
+              const forceVisibleFalse = (obj) => {
+                for (let k in obj) {
+                  if (typeof obj[k] === 'object' && obj[k] !== null) {
+                    forceVisibleFalse(obj[k]);
+                  } else if (k === 'visible') {
+                    obj[k] = false;
+                  }
+                }
+                // also force root level properties if any sub-components use them directly
+                if (!obj.hasOwnProperty('visible')) {
+                  obj.visible = false;
+                }
+              };
+              forceVisibleFalse(overrideStyle);
+              return overrideStyle;
+            }
+            
+            return baseStyle;
           }
           return target[prop];
         },
@@ -1477,6 +1518,7 @@ json.dumps(result)
           indicatorStyle={scopedIndicatorStyle}
           indicatorSeriesRef={scopedSeriesRef}
           addSeries={scopedAddSeries}
+          indicatorVisibility={indicatorVisibility}
           containerRef={containerRef.current}
           chart={chartRef.current}
           container={containerRef}
@@ -1620,7 +1662,7 @@ json.dumps(result)
   }, [selectedCurrency, timeframeValue, fromDate, toDate]);
 
   // ── Central Socket Hook ──
-  const { emit, once, connect, connected, id } = useSocket({
+  const { emit, once, connect, connected, id, off } = useSocket({
     handleConnect: () => {
       console.log("✅ SOCKET CONNECTED", connected);
       requestHistoricalData();
@@ -2104,8 +2146,8 @@ json.dumps(result)
   // Keep emitRef and socketRef up to date
   useEffect(() => {
     emitRef.current = emit;
-    socketRef.current = { emit, once };
-  }, [emit, once]);
+    socketRef.current = { emit, once, off };
+  }, [emit, once, off]);
 
   // Main useEffect for chart type/data changes
   useEffect(() => {
@@ -2160,6 +2202,34 @@ json.dumps(result)
       ...Object.values(panesRef.current)?.map((p) => p.chart),
     ].filter(Boolean);
     charts.forEach((chart) => chart.timeScale().fitContent());
+  };
+
+  const handleGoToDate = (targetDate) => {
+    if (!chartRef.current || !candlesRef.current?.length) return;
+    
+    const targetTimeSec = Math.floor(targetDate.getTime() / 1000);
+    
+    // Find the closest candle
+    let closestIndex = 0;
+    let minDiff = Infinity;
+    
+    for (let i = 0; i < candlesRef.current.length; i++) {
+      const candle = candlesRef.current[i];
+      const diff = Math.abs(candle.time - targetTimeSec);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIndex = i;
+      }
+    }
+    
+    // Calculate logical range to put the candle in the center
+    const fromIndex = Math.max(0, closestIndex - 25);
+    const toIndex = Math.min(candlesRef.current.length - 1, closestIndex + 25);
+    
+    chartRef.current.timeScale().setVisibleLogicalRange({
+      from: fromIndex,
+      to: toIndex,
+    });
   };
 
   return (
@@ -2316,6 +2386,7 @@ json.dumps(result)
                 setActiveTab={setActiveTab}
                 onCodeClick={() => setIsCodeEditorOpen((prev) => !prev)}
                 onStrategyClick={handleStrategyClick}
+                onGoToDate={handleGoToDate}
               />
 
               <div

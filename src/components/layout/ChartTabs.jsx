@@ -1,15 +1,18 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaCode, FaLaptopCode } from "react-icons/fa6";
-import { FiMaximize, FiZap } from "react-icons/fi";
+import { FiCalendar, FiMaximize, FiZap } from "react-icons/fi";
 import { SiVitest } from "react-icons/si";
+import GoToDateDialog from "./GoToDateDialog";
 
 const ChartTabs = ({
   activeTab,
   setActiveTab,
   onCodeClick,
   onStrategyClick,
+  onGoToDate,
 }) => {
+  const [showGoToDate, setShowGoToDate] = useState(false);
   const navigate = useNavigate();
   const styles = {
     container: {
@@ -220,6 +223,9 @@ const ChartTabs = ({
       </div>
 
       <div className="chart-actions-group">
+        <button onClick={() => setShowGoToDate(true)}>
+          <FiCalendar size={14} />
+        </button>
         <button
           onClick={onStrategyClick}
           className="chart-strategy-btn"
@@ -234,6 +240,15 @@ const ChartTabs = ({
           CODE EDITOR
         </button>
       </div>
+
+      {showGoToDate && (
+        <GoToDateDialog
+          onClose={() => setShowGoToDate(false)}
+          onGoTo={(date) => {
+            if (onGoToDate) onGoToDate(date);
+          }}
+        />
+      )}
     </div>
   );
 };
