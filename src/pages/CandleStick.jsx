@@ -1143,20 +1143,38 @@ json.dumps(result)
     // Force visibility to match the master toggle state if it's explicitly set to false
     const isVisible = indicatorVisibility[paneKey] !== false && (options.visible !== false);
 
+    const finalOptions = { ...options, visible: isVisible };
+    if (paneIndex !== 0 && !finalOptions.priceFormat) {
+      finalOptions.priceFormat = {
+        type: 'custom',
+        minMove: 0.0001,
+        formatter: (price) => {
+          if (price === undefined || price === null) return "";
+          const absPrice = Math.abs(price);
+          if (absPrice >= 1e9) {
+            return price.toExponential(2);
+          }
+          if (absPrice >= 1e6) {
+            return (price / 1e6).toFixed(2) + 'M';
+          }
+          return price.toFixed(4);
+        },
+      };
+    }
+
     const series = chartRef.current.addSeries(
       SeriesType,
-      {
-        ...(paneIndex !== 0 && { priceScaleId: `pane_${paneIndex}` }),
-        ...options,
-        visible: isVisible,
-      },
+      finalOptions,
       paneIndex,
     );
 
     if (paneIndex !== 0) {
       try {
-        chartRef.current.priceScale(`pane_${paneIndex}`).applyOptions({
+        series.priceScale().applyOptions({
           autoScale: true,
+          visible: true,
+          position: "right",
+          minimumWidth: 85,
           scaleMargins: {
             top: 0.1,
             bottom: 0.1,
@@ -1535,7 +1553,12 @@ json.dumps(result)
   };
 
   // SYNC CROSSHAIR
+  const lastIndicatorUpdateRef = useRef(0);
+
   const updateIndicatorValues = (param) => {
+    const now = Date.now();
+    if (now - lastIndicatorUpdateRef.current < 50) return;
+
     const updates = {};
 
     Object.entries(indicatorSeriesRef.current).forEach(([indicator, group]) => {
@@ -1561,6 +1584,7 @@ json.dumps(result)
     });
 
     if (Object.keys(updates)?.length > 0) {
+      lastIndicatorUpdateRef.current = now;
       latestIndicatorValuesRef.current = updates;
       setLiveIndicatorData(updates); // <- triggers renderValue
     }

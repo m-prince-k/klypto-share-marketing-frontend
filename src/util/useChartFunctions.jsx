@@ -1573,27 +1573,7 @@ async function fetchDataForIndicators(
           },
         };
 
-      case "VP":
-        return {
-          type: "multi",
-          data: {
-            volume:
-              response?.data?.map((d) => ({
-                time: Number(d.time) + IST_OFFSET,
-                value: Number(d.volume),
-                color:
-                  d.close >= d.open
-                    ? "rgba(38,166,154,1)"
-                    : "rgba(239,83,80,1)",
-              })) ?? [],
 
-            volumeMA:
-              response?.data?.map((d) => ({
-                time: Number(d.time) + IST_OFFSET,
-                value: Number(d.volumeMA),
-              })) ?? [],
-          },
-        };
       case "MFI":
         return {
           type: "single",

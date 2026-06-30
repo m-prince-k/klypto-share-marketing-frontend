@@ -102,6 +102,8 @@ const ChartTabs = ({
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           overflow-x: auto;
           white-space: nowrap;
+          position: relative;
+          z-index: 50;
         }
         .chart-tabs-container::-webkit-scrollbar {
           display: none;

@@ -18,17 +18,8 @@ export const ChartProprties = {
     fontSize: 12,
     fontFamily: "Inter, sans-serif",
   },
-  localization: {
-    priceFormatter: (price) => {
-      if (!price || price === 0) return "0.00";
-      const abs = Math.abs(price);
-      if (abs < 0.0001) {
-        return Number(price)
-          .toFixed(12)
-          .replace(/\.?0+$/, "");
-      }
-      return Number(price).toFixed(2);
-    },
+  rightPriceScale: {
+    minimumWidth: 85,
   },
   timeScale: {
     timeVisible: true,
@@ -174,9 +165,8 @@ export const MiniChartProprties = {
     exitMode: 0,
   },
 
-  localization: {
-    priceFormatter: (price) =>
-      price.toLocaleString("en-IN", { maximumFractionDigits: 2 }),
+  rightPriceScale: {
+    minimumWidth: 85,
   },
 };
 
@@ -284,6 +274,24 @@ export const getSeriesColor = (series) => {
   return series.options().color || "#999";
 };
 
+export const smartPriceFormatter = (price) => {
+  if (price === undefined || price === null) return "";
+  const absPrice = Math.abs(price);
+  if (absPrice >= 1e9) return price.toExponential(2);
+  if (absPrice >= 1e6) return (price / 1e6).toFixed(2) + 'M';
+  
+  if (absPrice > 0 && absPrice < 0.0001) {
+    return Number(price).toFixed(12).replace(/\.?0+$/, "");
+  }
+  return Number(price).toFixed(2);
+};
+
+export const defaultPriceFormat = {
+  type: 'custom',
+  minMove: 0.00000001,
+  formatter: smartPriceFormatter,
+};
+
 export const chartSeriesStyles = {
   candlestick: {
     upColor: "#22c55e",
@@ -292,6 +300,7 @@ export const chartSeriesStyles = {
     borderDownColor: "#ef4444",
     wickUpColor: "#22c55e",
     wickDownColor: "#ef4444",
+    priceFormat: defaultPriceFormat,
   },
 
   hollowcandles: {
@@ -316,6 +325,7 @@ export const chartSeriesStyles = {
     topColor: "rgba(56, 189, 248, 0.4)",
     bottomColor: "rgba(56, 189, 248, 0.0)",
     lineColor: "#38bdf8",
+    priceFormat: defaultPriceFormat,
   },
 
   baseline: {
@@ -326,6 +336,7 @@ export const chartSeriesStyles = {
     bottomLineColor: "rgba(239,68,68,1)",
     bottomFillColor1: "rgba(239,68,68,0.4)",
     bottomFillColor2: "rgba(239,68,68,0.05)",
+    priceFormat: defaultPriceFormat,
   },
 
   histogram: {
