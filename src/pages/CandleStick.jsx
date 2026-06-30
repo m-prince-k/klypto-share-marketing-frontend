@@ -925,6 +925,8 @@ json.dumps(result)
   }, [indicatorStyle]);
   const isUp = liveOhlcv?.close >= liveOhlcv?.open;
   const valueColor = isUp ? "text-green-500" : "text-red-500";
+  // eslint-disable-next-line no-unused-expressions
+  void indicatorUpdateTrigger; // keep this — forces re-eval when data arrives (ref reads don't re-render)
   const hasPaneIndicators = selectedIndicator.some((ind) =>
     PANE_INDICATORS.has(typeof ind === "object" ? ind.type : ind) &&
     indicatorDataRef.current?.[typeof ind === "object" ? ind.id : ind] !== undefined
@@ -1777,6 +1779,13 @@ json.dumps(result)
         strategyMarkersRef.current = null;
       }
 
+      // Reset price scale so Y-axis re-adapts to the new symbol's price range.
+      // Without this, switching from e.g. a ₹50 stock to a ₹5000 stock keeps
+      // the old Y range and the new candles appear off-screen.
+      try {
+        chartRef.current.priceScale("right").applyOptions({ autoScale: true });
+      } catch {}
+
       switch (chartType) {
         case "line":
           if (!seriesRef.current) {
@@ -1890,8 +1899,16 @@ json.dumps(result)
           timeframeValue,
         ).then(() => {
           setIndicatorUpdateTrigger((v) => v + 1);
-        }).finally(() => {
-          // Lift the transition overlay once indicators are also ready
+          // Defer overlay removal: give React one full render cycle + a
+          // small buffer so indicator Plot useEffects (SSL, RSI, etc.)
+          // complete their series.setData() calls before the overlay lifts.
+          setTimeout(() => {
+            setMainChartLoading(false);
+            symbolTransitioningRef.current = false;
+            setSymbolTransitioning(false);
+          }, 300);
+        }).catch(() => {
+          // Even on error, lift the overlay
           setMainChartLoading(false);
           symbolTransitioningRef.current = false;
           setSymbolTransitioning(false);
@@ -2528,17 +2545,6 @@ json.dumps(result)
                           }}
                         >
                           <Spinner />
-                          {symbolTransitioning && (
-                            <div style={{
-                              marginTop: "12px",
-                              fontSize: "13px",
-                              color: "rgba(179,182,190,0.8)",
-                              letterSpacing: "0.04em",
-                              fontWeight: 500,
-                            }}>
-                              Loading {selectedCurrency?.name}...
-                            </div>
-                          )}
                         </div>
                       )}
                       {/* Strategy scanner overlay */}

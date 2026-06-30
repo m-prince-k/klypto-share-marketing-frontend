@@ -1584,7 +1584,6 @@ async function fetchDataForIndicators(
           },
         };
 
-
       case "MFI":
         return {
           type: "single",
