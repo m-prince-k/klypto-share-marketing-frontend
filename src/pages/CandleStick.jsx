@@ -2526,7 +2526,7 @@ json.dumps(result)
                       }}
                     >
                       {/* Unified chart transition overlay — covers during symbol/timeframe change */}
-                      {(symbolTransitioning || mainChartLoading) && !isDeploying && (
+                      {(symbolTransitioning || mainChartLoading || indicatorLoading) && !isDeploying && (
                         <div
                           style={{
                             position: "absolute",
@@ -2539,8 +2539,9 @@ json.dumps(result)
                             flexDirection: "column",
                             alignItems: "center",
                             justifyContent: "center",
-                            background: "rgba(10, 11, 14, 0.92)",
-                            backdropFilter: "blur(2px)",
+                            background: (symbolTransitioning || mainChartLoading) ? "rgba(10, 11, 14, 0.92)" : "transparent",
+                            backdropFilter: (symbolTransitioning || mainChartLoading) ? "blur(2px)" : "none",
+                            pointerEvents: (symbolTransitioning || mainChartLoading) ? "auto" : "none",
                             transition: "opacity 0.25s ease",
                           }}
                         >

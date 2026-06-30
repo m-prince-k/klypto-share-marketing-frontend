@@ -1888,21 +1888,21 @@ export const getRowsByIndicator = (indicator, maType, indicatorConfigs) => {
           label: "-ATR",
           type: "line",
         },
-        {
-          key: "exitArrows",
-          label: "Exit Arrows",
-          type: "marker",
-        },
-        {
-          key: "signalDiamonds",
-          label: "Signal Diamonds",
-          type: "marker",
-        },
-        {
-          key: "baselineFill",
-          label: "Baseline Background",
-          type: "fill",
-        },
+        // {
+        //   key: "exitArrows",
+        //   label: "Exit Arrows",
+        //   type: "marker",
+        // },
+        // {
+        //   key: "signalDiamonds",
+        //   label: "Signal Diamonds",
+        //   type: "marker",
+        // },
+        // {
+        //   key: "baselineFill",
+        //   label: "Baseline Background",
+        //   type: "fill",
+        // },
       ];
     }
     case "MA_RIBBON":

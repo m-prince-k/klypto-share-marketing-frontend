@@ -50,6 +50,7 @@ export default function BodyDNAPlot({
       const series = addSeries(id, LineSeries, {
         color: style?.[key]?.color,
         lineWidth: style?.[key]?.width,
+        lineStyle: style?.[key]?.lineStyle,
         visible: style?.[key]?.visible,
         priceLineVisible: false,
       });
@@ -71,6 +72,7 @@ export default function BodyDNAPlot({
     const zeroLine = addSeries(id, LineSeries, {
       color: style?.zeroLine?.color,
       lineWidth: style?.zeroLine?.width,
+      lineStyle: style?.zeroLine?.lineStyle,
       visible: style?.zeroLine?.visible,
       lastValueVisible: false,
       priceLineVisible: false,
@@ -103,7 +105,7 @@ export default function BodyDNAPlot({
         const refSeries = addSeries(`${id}_${level.key}`, LineSeries, {
           color: lineStyleDef?.color || level.defaultColor,
           lineWidth: lineStyleDef?.width || 1,
-          lineStyle: 2, // dashed
+          lineStyle: lineStyleDef?.lineStyle ?? 2,
           visible: lineStyleDef?.visible ?? true,
           priceLineVisible: false,
           lastValueVisible: false,
@@ -171,6 +173,7 @@ export default function BodyDNAPlot({
       series.applyOptions({
         color: style?.[key]?.color,
         lineWidth: style?.[key]?.width,
+        lineStyle: style?.[key]?.lineStyle,
         visible: style?.[key]?.visible,
       });
     });

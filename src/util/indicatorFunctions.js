@@ -1636,14 +1636,14 @@ export let indicatorStyleDefault = {
       width: 2,
       lineStyle: 0,
     },
-    plusAtr: {
-      visible: true,
+    atrUpper: {
+      visible: false,
       color: "rgba(0,200,83,1)",
       width: 1,
       lineStyle: 1,
     },
-    minusAtr: {
-      visible: true,
+    atrLower: {
+      visible: false,
       color: "rgba(213,0,0,1)",
       width: 1,
       lineStyle: 1,
