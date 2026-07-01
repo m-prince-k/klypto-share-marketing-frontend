@@ -2581,14 +2581,8 @@ json.dumps(result)
                               flexDirection: "column",
                               alignItems: "center",
                               justifyContent: "center",
-                              background:
-                                symbolTransitioning || mainChartLoading
-                                  ? "rgba(10, 11, 14, 0.92)"
-                                  : "transparent",
-                              backdropFilter:
-                                symbolTransitioning || mainChartLoading
-                                  ? "blur(2px)"
-                                  : "none",
+                              background: "transparent",
+                              backdropFilter: "none",
                               pointerEvents:
                                 symbolTransitioning || mainChartLoading
                                   ? "auto"
